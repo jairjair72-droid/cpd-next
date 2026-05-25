@@ -16,7 +16,7 @@ interface BinanceRawTicker {
 const MIN_VOLUME_USD = 500_000;
 
 export async function fetchBinanceTickers(): Promise<BinanceTicker[]> {
-  const res = await fetch("https://api.binance.com/api/v3/ticker/24hr", {
+  const res = await fetch("https://data-api.binance.vision/api/v3/ticker/24hr", {
     // En el servidor podemos cachear durante 30s para no bombardear.
     next: { revalidate: 30 },
   });
