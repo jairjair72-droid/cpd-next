@@ -1,0 +1,432 @@
+/* ═════════════════════════════════════════════════════════════════════════
+   Sistema de temas — claro (default) + oscuro
+   Para agregar un tema nuevo: duplicá el bloque [data-theme="X"] y cambiá
+   los valores. Ningún componente necesita modificarse.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-theme="light"] {
+  /* Neutros */
+  --color-bg:           #f5f0e8;
+  --color-card:         #fffdf7;
+  --color-card-inner:   #fffaf0;
+  --color-border:       #e2d9c8;
+  --color-text:         #2c2416;
+  --color-text-soft:    #7a6e5f;
+  --color-text-mute:    #b5a898;
+
+  /* Semánticos */
+  --color-accent:       #c0392b;
+  --color-accent-soft:  #fdf2f0;
+  --color-accent-border:#f0c8c0;
+  --color-warning:      #e67e22;
+  --color-success:      #27ae60;
+  --color-info:         #3498db;
+  --color-risk-extreme: #8e24aa;
+
+  /* Misc */
+  --color-gold:         #c9a227;
+  --shadow-card:        0 4px 12px rgba(192, 57, 43, 0.2);
+  --shadow-dropdown:    0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] {
+  /* Neutros — mantenemos la estética cálida, evitamos negros puros */
+  --color-bg:           #1a1612;
+  --color-card:         #221d17;
+  --color-card-inner:   #2a241d;
+  --color-border:       #3a3128;
+  --color-text:         #f0e8da;
+  --color-text-soft:    #b8aa92;
+  --color-text-mute:    #8a7c66;
+
+  /* Semánticos — más vibrantes para destacar sobre fondo oscuro */
+  --color-accent:       #e74c3c;
+  --color-accent-soft:  #2d1815;
+  --color-accent-border:#5a2620;
+  --color-warning:      #f39c12;
+  --color-success:      #2ecc71;
+  --color-info:         #5dade2;
+  --color-risk-extreme: #a569bd;
+
+  --color-gold:         #d4af37;
+  --shadow-card:        0 4px 12px rgba(231, 76, 60, 0.25);
+  --shadow-dropdown:    0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* Transición suave al cambiar tema */
+* {
+  transition: background-color .2s ease, border-color .2s ease, color .15s ease;
+}
+.theme-no-transition,
+.theme-no-transition * {
+  transition: none !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Reset y estilos base
+   ═══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #__next {
+  background: var(--color-bg) !important;
+  color: var(--color-text);
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-accent);
+  opacity: .33;
+  border-radius: 2px;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .3; }
+}
+.fa { animation: fadeUp .3s ease; }
+
+.page-inner { padding: 16px 24px; width: 100%; }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Tabs del header
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tab-bar { display: flex; width: 100%; overflow-x: auto; }
+.tab-spacer { flex: 1; }
+.tab-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px 18px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+  transition: all .2s;
+  color: var(--color-text-mute);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tab-btn.active {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.tab-btn:hover:not(.active) {
+  color: var(--color-text-soft);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Botones
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.btn-p {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.btn-p:hover {
+  filter: brightness(0.92);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+.btn-p:disabled {
+  background: var(--color-border);
+  color: var(--color-text-mute);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-s {
+  background: transparent;
+  color: var(--color-accent);
+  border: 1.5px solid var(--color-accent);
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.btn-s:hover    { background: var(--color-accent-soft); }
+.btn-s:disabled {
+  color: var(--color-text-mute);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-mute);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+  letter-spacing: .5px;
+}
+.btn-ghost:hover {
+  color: var(--color-text-soft);
+  border-color: var(--color-text-mute);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Inputs
+   ═══════════════════════════════════════════════════════════════════════ */
+
+input[type=range] { accent-color: var(--color-accent); width: 100%; }
+
+input[type=number],
+input[type=text],
+input[type=password] {
+  background: var(--color-bg);
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+  transition: border .2s;
+}
+input:focus { border-color: var(--color-accent); }
+input::placeholder { color: var(--color-text-mute); }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Toggle switch (Auto-trade, Streaming, etc.)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tog {
+  width: 40px;
+  height: 22px;
+  background: var(--color-border);
+  border-radius: 11px;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  transition: background .25s;
+  flex-shrink: 0;
+}
+.tog.on { background: var(--color-accent); }
+.tog::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: left .25s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.tog.on::after { left: 21px; }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Dashboard grid — 2 filas independientes
+   Cada fila controla su propio foco (panel activo + hermano compacto).
+   Las filas no se afectan entre sí.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.dash-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+  grid-template-areas: "row1" "row2";
+}
+
+.dash-row-1 { grid-area: row1; }
+.dash-row-2 { grid-area: row2; }
+
+/* Cada fila tiene su propio grid de 2 columnas.
+   La proporción la setea el componente vía CSS variable inline:
+   - Sin foco: "1fr 1fr" (50/50)
+   - Con foco en panel izq: "7fr 3fr" (70/30)
+   - Con foco en panel der: "3fr 7fr" (30/70)
+   - Solo un panel: "1fr" (100%) → aplica clase .row-single */
+.dash-row {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: var(--row-cols, 1fr 1fr);
+  transition: grid-template-columns .3s ease;
+}
+
+.dash-row.row-single {
+  grid-template-columns: 1fr;
+}
+
+/* Responsive: en mobile cada fila colapsa a una columna */
+@media (max-width: 959px) {
+  .dash-row { grid-template-columns: 1fr !important; }
+}
+
+/* ─── Panel del Dashboard (clase común) ──────────────────────────────────
+   Esta clase la usan los 4 paneles. Captura el comportamiento estructural
+   compartido: el panel debe ser un contenedor "anclado" para que los
+   elementos absolutos (overlays compactos, hints, botones flotantes) se
+   posicionen relativo a él. */
+
+.dash-panel {
+  position: relative;
+}
+
+/* ─── Estado compacto (hermano sin foco) ───────────────────────────────────
+   El panel se ve atenuado y pierde interactividad. NO es clickeable — la
+   única forma de activar foco es vía el botón ⛶ del propio panel.
+   El contenido se corta en el lado derecho (overflow hidden) para que la
+   prioridad visual sea siempre el lado izquierdo. */
+
+.panel-compact {
+  opacity: 0.65;
+  overflow: hidden;
+  transition: opacity .2s;
+  /* Deshabilitamos toda interacción excepto el ⛶, que está fuera del flow
+     normal mediante z-index. Ver regla específica abajo. */
+  pointer-events: none;
+}
+
+/* Excepción: el botón expandir del panel compacto SÍ debe seguir clickeable.
+   Esto se logra dándole pointer-events: auto + z-index alto. */
+.panel-compact button[aria-label="Expandir panel"],
+.panel-compact button[aria-label="Contraer panel"] {
+  pointer-events: auto;
+  position: relative;
+  z-index: 4;
+}
+
+.panel-compact::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ─── Inners (log + cards en columnas) ─────────────────────── */
+
+.panel-inner {
+  display: grid;
+  margin-top: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.panel-inner--single {
+  grid-template-columns: 1fr;
+}
+
+.panel-inner--split {
+  grid-template-columns: minmax(0,1fr) minmax(0,1.6fr);
+  gap: 10px;
+}
+
+/* ─── Scrollable interno (lista de tokens en paneles) ──────────────────── */
+
+.scroll-y {
+  overflow-y: auto;
+  height: 100%;
+  max-height: min(70vh, 720px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Telegram — stats y mensajes
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tg-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.tg-msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Alertas (tab)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.alert-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--color-bg);
+  border-radius: 7px;
+  padding: 7px 10px;
+  border-left: 3px solid transparent;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Settings
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   ThemeToggle (header)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.theme-toggle:hover {
+  border-color: var(--color-accent);
+  transform: rotate(15deg);
+}
