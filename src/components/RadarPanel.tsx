@@ -6,6 +6,7 @@ import { fmtPrice, relTime } from "@/lib/formatters";
 import { computePerformance } from "@/lib/radar";
 import ExpandButton from "./ExpandButton";
 import ScoreBadge from "./ScoreBadge";
+import PanelHeader from "@/components/PanelHeader";
 import type {
   RadarSignal,
   FearGreedIndex,
@@ -71,19 +72,40 @@ export default function RadarPanel({
       }}
     >
       <PanelHeader
-        signalCount={activeSignals.length}
-        fng={fng}
-        expanded={isFocused}
-        onToggleExpand={onToggleFocus}
+        title="🎯 Radar — Señales técnicas"
+        subtitle={
+          <>
+            <span>{activeSignals.length} activas · ordenadas por score</span>
+            {fng && (
+              <span
+                style={{
+                  background: `color-mix(in srgb, ${fngColor(fng.value)} 10%, transparent)`,
+                  color: fngColor(fng.value),
+                  border: `1px solid color-mix(in srgb, ${fngColor(fng.value)} 30%, transparent)`,
+                  borderRadius: 4,
+                  padding: "1px 5px",
+                  fontSize: 8,
+                  fontWeight: 700,
+                }}
+              >
+                F&G {fng.value}
+              </span>
+            )}
+          </>
+        }
+        isFocused={isFocused}
+        onToggleFocus={onToggleFocus}
       />
-
-      <PerfLine performance={performance} />
 
       {activeSignals.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="panel-inner panel-inner--single">
-          <div className="scroll-y">
+          <div className="panel-tokens-header">
+            <PerfLine performance={performance} />
+          </div>
+
+          <div className="scroll-y" style={{ gap: 6 }}>
             {visible.map((s) => (
               <RadarCard
                 key={s.id}
@@ -104,76 +126,6 @@ export default function RadarPanel({
 }
 
 // ─── Header del panel ────────────────────────────────────────────────────────
-
-function PanelHeader({
-  signalCount,
-  fng,
-  expanded,
-  onToggleExpand,
-}: {
-  signalCount: number;
-  fng: FearGreedIndex | null;
-  expanded: boolean;
-  onToggleExpand: () => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 12,
-        flexWrap: "wrap",
-        marginBottom: 10,
-      }}
-    >
-      <div style={{ minWidth: 0, flex: "1 1 200px" }}>
-        <div
-          style={{
-            fontSize: 10,
-            color: MUTED,
-            fontFamily: "'Inter', sans-serif",
-            fontWeight: 600,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-          }}
-        >
-          🎯 Radar — Señales técnicas
-        </div>
-        <div
-          style={{
-            fontSize: 10,
-            color: MUTED,
-            fontFamily: "'Inter', sans-serif",
-            marginTop: 2,
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <span>{signalCount} activas · ordenadas por score</span>
-          {fng && (
-            <span
-              style={{
-                background: tint(fngColor(fng.value), 10),
-                color: fngColor(fng.value),
-                border: `1px solid ${tint(fngColor(fng.value), 30)}`,
-                borderRadius: 4,
-                padding: "1px 5px",
-                fontSize: 8,
-                fontWeight: 700,
-              }}
-            >
-              F&G {fng.value}
-            </span>
-          )}
-        </div>
-      </div>
-      <ExpandButton expanded={expanded} onClick={onToggleExpand} />
-    </div>
-  );
-}
 
 function fngColor(value: number): string {
   if (value < 25) return GREEN;

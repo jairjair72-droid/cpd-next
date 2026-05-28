@@ -122,10 +122,90 @@ html, body, #__next {
 }
 .tab-btn.active {
   color: var(--color-accent);
-  border-color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
 }
 .tab-btn:hover:not(.active) {
   color: var(--color-text-soft);
+}
+
+/* En mobile, ocultamos la scrollbar nativa (la navegación va por flechas) */
+@media (max-width: 767px) {
+  .tab-bar {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/Edge legacy */
+  }
+  .tab-bar::-webkit-scrollbar {
+    display: none;                  /* Webkit */
+  }
+}
+
+/* Wrapper de tabs con flechas (solo activo en mobile) */
+.tab-bar-wrapper {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  position: relative;
+}
+
+.tab-arrow {
+  display: none;                    /* oculto en desktop por default */
+  width: 40px;
+  flex-shrink: 0;
+  background: var(--color-card);
+  border: none;
+  color: var(--color-text-soft);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  align-items: center;
+  justify-content: center;
+  transition: opacity .2s, color .2s;
+}
+.tab-arrow:hover {
+  color: var(--color-accent);
+}
+
+/* En mobile: las flechas aparecen */
+@media (max-width: 767px) {
+  .tab-arrow {
+    display: inline-flex;
+  }
+}
+
+/* ─── Mobile: delimitación visual de áreas tocables ───────────────────────
+   Cada tab y cada flecha quedan separadas por un borde sutil. Esto da
+   affordance clara de qué es tocable en pantallas sin hover. */
+
+@media (max-width: 767px) {
+  .tab-arrow:first-child {
+    border-right: 1px solid var(--color-border);
+  }
+  .tab-arrow:last-child {
+    border-left: 1px solid var(--color-border);
+  }
+  .tab-btn {
+    border-right: 1px solid var(--color-border);
+  }
+  .tab-btn:last-child {
+    border-right: none;
+  }
+}
+
+/* Flecha invisible cuando no hay scroll en ese lado (UX limpia) */
+.tab-arrow.is-hidden {
+  color: transparent;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Header mobile — campanita y theme toggle a la derecha
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  .header-actions {
+    margin-left: auto;
+  }
 }
 
 /* ═════════════════════════════════════════════════════════════════════════
@@ -342,6 +422,8 @@ input::placeholder { color: var(--color-text-mute); }
 
 .panel-inner--single {
   grid-template-columns: 1fr;
+  /* Primera fila: alto natural (encabezado). Segunda fila: resto disponible (scroll). */
+  grid-template-rows: auto 1fr;
 }
 
 .panel-inner--split {
@@ -429,4 +511,145 @@ input::placeholder { color: var(--color-text-mute); }
 .theme-toggle:hover {
   border-color: var(--color-accent);
   transform: rotate(15deg);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Discover — log con preview en mobile
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.discover-log {
+  position: relative;
+}
+
+/* Cuando está colapsado (preview), aplicamos máscara para difuminar el final */
+.discover-log--collapsed {
+  max-height: 180px;
+  overflow: hidden;
+  /* Difuminado sutil en la parte inferior, fade hacia transparente */
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+
+.discover-log-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  padding: 6px 10px;
+  margin-top: 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-soft);
+  cursor: pointer;
+  transition: all .15s;
+}
+.discover-log-toggle:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* En mobile, el panel-inner--split se convierte en 1 columna apilada */
+@media (max-width: 767px) {
+  .panel-inner--split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Notificación dropdown ─────────────────────────────────────────────
+   Desktop: anclado al botón de la campanita.
+   Mobile: anclado al borde derecho de la pantalla con margen. */
+
+.notification-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+}
+
+@media (max-width: 767px) {
+  .notification-dropdown {
+    position: fixed;
+    /* top se setea dinámicamente desde JS según la posición real del botón */
+    right: 12px;
+    left: auto;
+    width: calc(100vw - 24px);
+    max-width: 380px;
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   PanelTitleBar — Header superior compartido por todos los paneles
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.panel-header-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  /* Difuminado sutil hacia la derecha cuando el contenido se desborda */
+  mask-image: linear-gradient(to right, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 92%, transparent 100%);
+}
+
+.panel-header-title {
+  font-size: 10px;
+  color: var(--color-text-mute);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.panel-header-subtitle {
+  font-size: 10px;
+  color: var(--color-text-mute);
+  font-family: 'Inter', sans-serif;
+  margin-top: 2px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+/* En mobile: el ExpandButton se ve deshabilitado visualmente */
+@media (max-width: 767px) {
+  .panel-header button[aria-label="Expandir panel"],
+  .panel-header button[aria-label="Contraer panel"] {
+    opacity: 0.4;
+    pointer-events: none;
+    cursor: not-allowed;
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Encabezado del bloque de tokens (fijo, no scrollea)
+   Se ubica entre la PanelTitleBar y el .scroll-y de las cards.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.panel-tokens-header {
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+
+/* Para Discover (2 columnas): la columna de la derecha es flex column
+   para que el encabezado + scroll-y funcionen correctamente */
+.panel-tokens-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }

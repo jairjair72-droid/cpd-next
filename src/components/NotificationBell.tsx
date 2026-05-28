@@ -43,6 +43,8 @@ export default function NotificationBell({
 }: Props) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [dropdownTop, setDropdownTop] = useState<number | null>(null);
 
   // Mezcla unificada ordenada por ts desc, cortada a TOTAL_LIMIT
   const feed = useMemo<FeedItem[]>(() => {
@@ -84,6 +86,38 @@ export default function NotificationBell({
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
+  // Calcula la posición vertical del dropdown en mobile.
+  // Se actualiza al abrir + al scrollear/redimensionar (para que el dropdown 
+  // siga al botón aunque cambie de posición).
+  useEffect(() => {
+    if (!open) return;
+
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    if (!isMobile) {
+      setDropdownTop(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      // Top del dropdown = bottom del botón + 8px de respiro
+      setDropdownTop(rect.bottom + 8);
+    };
+
+    updatePosition();
+
+    // Recalcular en scroll y resize para que el dropdown siga al botón
+    window.addEventListener("scroll", updatePosition, { passive: true });
+    window.addEventListener("resize", updatePosition);
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open]);
+
   const toggle = () => {
     if (!open && unread > 0) onMarkAllRead();
     setOpen(!open);
@@ -92,6 +126,7 @@ export default function NotificationBell({
   return (
     <div ref={wrapRef} style={{ position: "relative" }}>
       <button
+        ref={buttonRef} 
         onClick={toggle}
         aria-label={`Notificaciones${unread > 0 ? ` (${unread} sin leer)` : ""}`}
         title={unread > 0 ? `${unread} eventos sin leer` : "Notificaciones"}
@@ -141,12 +176,8 @@ export default function NotificationBell({
 
       {open && (
         <div
+          className="notification-dropdown"
           style={{
-            position: "absolute",
-            top: "calc(100% + 8px)",
-            right: 0,
-            width: 360,
-            maxWidth: "calc(100vw - 24px)",
             background: CARD,
             border: `1px solid ${BORDER}`,
             borderRadius: 10,
@@ -154,6 +185,9 @@ export default function NotificationBell({
             zIndex: 30,
             overflow: "hidden",
             fontFamily: "'Inter', sans-serif",
+            // En mobile: top dinámico calculado desde la posición real del botón.
+            // En desktop: dropdownTop es null y CSS toma control.
+            ...(dropdownTop !== null ? { top: dropdownTop } : {}),
           }}
         >
           {/* Header del dropdown */}

@@ -733,7 +733,12 @@ export default function App() {
             )}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+        <div 
+          className="header-actions"
+          style={{ 
+            display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" 
+          }}
+        >
           {(
             [
               [candidates.length, "candidatos", ACCENT],
@@ -787,21 +792,11 @@ export default function App() {
 
       {/* Tabs */}
       <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, width: "100%" }}>
-        <div className="tab-bar" style={{ paddingLeft: 8 }}>
-          <button className={`tab-btn ${tab === "dashboard" ? "active" : ""}`} onClick={() => setTab("dashboard")}>
-            📊 Panel
-          </button>
-          <button className={`tab-btn ${tab === "alertas" ? "active" : ""}`} onClick={() => setTab("alertas")}>
-            🔔 Alertas {alerts.length > 0 && <span style={{ background: ORANGE, color: "#fff", borderRadius: 9, padding: "0 5px", fontSize: 9, marginLeft: 4, fontWeight: 700 }}>{alerts.length}</span>}
-          </button>
-          <button className={`tab-btn ${tab === "learning" ? "active" : ""}`} onClick={() => setTab("learning")}>
-            🧠 Aprendizaje
-          </button>
-          <div className="tab-spacer" />
-          <button className={`tab-btn ${tab === "ajustes" ? "active" : ""}`} onClick={() => setTab("ajustes")}>
-            ⚙️ Ajustes
-          </button>
-        </div>
+        <TabsBar
+          activeTab={tab}
+          setTab={setTab}
+          alertsCount={alerts.length}
+        />
       </div>
 
       <div className="page-inner">
@@ -1831,5 +1826,116 @@ function SettingsLabel({ children }: { children: React.ReactNode }) {
     >
       {children}
     </label>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TABS BAR (con flechas para mobile)
+// ════════════════════════════════════════════════════════════════════════════
+
+function TabsBar({
+  activeTab,
+  setTab,
+  alertsCount,
+}: {
+  activeTab: Tab;
+  setTab: (t: Tab) => void;
+  alertsCount: number;
+}) {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false);
+  const [canScrollRight, setCanScrollRight] = React.useState(false);
+
+  // Recalcula si las flechas deben estar visibles según el scroll actual
+  const updateArrows = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  React.useEffect(() => {
+    updateArrows();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateArrows);
+    window.addEventListener("resize", updateArrows);
+    return () => {
+      el.removeEventListener("scroll", updateArrows);
+      window.removeEventListener("resize", updateArrows);
+    };
+  }, [updateArrows]);
+
+  const scrollBy = (dir: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const amount = el.clientWidth * 0.7;
+    el.scrollBy({
+      left: dir === "left" ? -amount : amount,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <div className="tab-bar-wrapper">
+      <button
+        className={`tab-arrow ${!canScrollLeft ? "is-hidden" : ""}`}
+        onClick={() => scrollBy("left")}
+        aria-label="Tabs anteriores"
+      >
+        ‹
+      </button>
+
+      <div ref={scrollRef} className="tab-bar">
+        <button
+          className={`tab-btn ${activeTab === "dashboard" ? "active" : ""}`}
+          onClick={() => setTab("dashboard")}
+        >
+          📊 Panel
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "alertas" ? "active" : ""}`}
+          onClick={() => setTab("alertas")}
+        >
+          🔔 Alertas{" "}
+          {alertsCount > 0 && (
+            <span
+              style={{
+                background: ORANGE,
+                color: "#fff",
+                borderRadius: 9,
+                padding: "0 5px",
+                fontSize: 9,
+                marginLeft: 4,
+                fontWeight: 700,
+              }}
+            >
+              {alertsCount}
+            </span>
+          )}
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "learning" ? "active" : ""}`}
+          onClick={() => setTab("learning")}
+        >
+          🧠 Aprendizaje
+        </button>
+        <div className="tab-spacer" />
+        <button
+          className={`tab-btn ${activeTab === "ajustes" ? "active" : ""}`}
+          onClick={() => setTab("ajustes")}
+        >
+          ⚙️ Ajustes
+        </button>
+      </div>
+
+      <button
+        className={`tab-arrow ${!canScrollRight ? "is-hidden" : ""}`}
+        onClick={() => scrollBy("right")}
+        aria-label="Tabs siguientes"
+      >
+        ›
+      </button>
+    </div>
   );
 }

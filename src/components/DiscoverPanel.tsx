@@ -1,10 +1,12 @@
 "use client";
 
 import { COLORS } from "@/lib/constants";
+import { useEffect, useRef, useState } from "react";
 import type { CandidateToken, ScanLogEntry } from "@/lib/types";
 import TokenSearchBox from "./TokenSearchBox";
 import ExpandButton from "./ExpandButton";
 import TokenCard from "./TokenCard";
+import PanelHeader from "@/components/PanelHeader";
 
 const { MUTED, SUB, ACCENT, ORANGE, GREEN } = COLORS;
 
@@ -43,6 +45,10 @@ export default function DiscoverPanel(props: DiscoverPanelProps) {
     compact,
   } = props;
 
+  // Estado: si el log está expandido en mobile (toggle del "Ver N más")
+  const [logExpanded, setLogExpanded] = useState(false);
+  const LOG_PREVIEW_COUNT = 10;
+
   return (
     <div
       className={`dash-panel panel-discover ${compact ? "panel-compact" : ""}`}
@@ -54,90 +60,66 @@ export default function DiscoverPanel(props: DiscoverPanelProps) {
       }}
     >
       <PanelHeader
-        candidateCount={candidates.length}
-        expanded={isFocused}
-        onToggleExpand={onToggleFocus}
-        rightSlot={
-          <TokenSearchBox
-            candidates={sortedAll}
-            value={searchQuery}
-            onChange={setSearchQuery}
-            disabled={searchDisabled}
-            matchCount={filtered.length}
-            totalCount={sortedAll.length}
-          />
+        title="🔍 Descubrir — Última cacería"
+        subtitle={
+          candidates.length
+            ? `${candidates.length} candidatos encontrados · ordenados por score`
+            : "Resultados del último scan en curso o ejecutado"
         }
+        isFocused={isFocused}
+        onToggleFocus={onToggleFocus}
       />
 
       <div className="panel-inner panel-inner--split">
-        {/* Columna izquierda: log del escaneo */}
-        <div className="scroll-y" style={{ gap: 3 }}>
-          {scanLog.length === 0 ? (
-            <span
-              style={{
-                fontSize: 11,
-                color: MUTED,
-                fontFamily: "'Inter', sans-serif",
-              }}
-            >
-              Esperando inicio...
-            </span>
-          ) : (
-            [...scanLog].reverse().map((l, i) => (
-              <div
-                key={i}
-                style={{
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 10,
-                  lineHeight: 1.6,
-                  flexShrink: 0,
-                  color:
-                    l.type === "hit"
-                      ? GREEN
-                      : l.type === "done"
-                      ? ACCENT
-                      : l.type === "warn"
-                      ? ORANGE
-                      : l.type === "skip"
-                      ? MUTED
-                      : SUB,
-                }}
-              >
-                <span style={{ color: MUTED }}>{l.t} </span>
-                {l.msg}
-              </div>
-            ))
-          )}
-        </div>
+        {/* Columna izquierda: log */}
+        <DiscoverLog
+          scanLog={scanLog}
+          logExpanded={logExpanded}
+          setLogExpanded={setLogExpanded}
+          previewCount={LOG_PREVIEW_COUNT}
+        />
 
-        {/* Columna derecha: lista de candidatos */}
-        <div className="scroll-y">
-          {candidates.length === 0 && !scanning ? (
-            <DiscoverEmptyState />
-          ) : candidates.length > 0 && filtered.length === 0 ? (
-            <NoMatchesState
-              searchQuery={searchQuery}
-              onClear={() => setSearchQuery("")}
+        {/* Columna derecha: encabezado de búsqueda + scroll de cards */}
+        <div className="panel-tokens-column">
+          <div className="panel-tokens-header">
+            <TokenSearchBox
+              candidates={sortedAll}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              disabled={searchDisabled}
+              matchCount={filtered.length}
+              totalCount={sortedAll.length}
             />
-          ) : (
-            filtered.map((tok, idx) => {
-              const cardId = `d-${tok.id}`;
-              const podiumRank =
-                searchQuery.trim() === "" && idx < 3 ? idx + 1 : undefined;
-              return (
-                <TokenCard
-                  key={cardId}
-                  tok={tok}
-                  expanded={expandedId === cardId}
-                  onToggle={() => {
-                    if (compact) return;
-                    toggleExpand(cardId);
-                  }}
-                  podiumRank={podiumRank}
-                />
-              );
-            })
-          )}
+          </div>
+
+          <div className="scroll-y">
+            {candidates.length === 0 && !scanning ? (
+              <DiscoverEmptyState />
+            ) : candidates.length > 0 && filtered.length === 0 ? (
+              <NoMatchesState
+                searchQuery={searchQuery}
+                onClear={() => setSearchQuery("")}
+              />
+            ) : (
+              filtered.map((tok, idx) => {
+                const cardId = `d-${tok.id}`;
+                const podiumRank =
+                  searchQuery.trim() === "" && idx < 3 ? idx + 1 : undefined;
+                return (
+                  <TokenCard
+                    key={cardId}
+                    tok={tok}
+                    expanded={expandedId === cardId}
+                    onToggle={() => {
+                      if (compact) return;
+                      toggleExpand(cardId);
+                    }}
+                    podiumRank={podiumRank}
+                  />
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -145,69 +127,6 @@ export default function DiscoverPanel(props: DiscoverPanelProps) {
 }
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
-
-function PanelHeader({
-  candidateCount,
-  expanded,
-  onToggleExpand,
-  rightSlot,
-}: {
-  candidateCount: number;
-  expanded: boolean;
-  onToggleExpand: () => void;
-  rightSlot?: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 12,
-        flexWrap: "wrap",
-      }}
-    >
-      <div style={{ minWidth: 0, flex: "1 1 200px" }}>
-        <div
-          style={{
-            fontSize: 10,
-            color: MUTED,
-            fontFamily: "'Inter', sans-serif",
-            fontWeight: 600,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-          }}
-        >
-          🔍 Descubrir — Última cacería
-        </div>
-        <div
-          style={{
-            fontSize: 10,
-            color: MUTED,
-            fontFamily: "'Inter', sans-serif",
-            marginTop: 2,
-          }}
-        >
-          {candidateCount
-            ? `${candidateCount} candidatos encontrados · ordenados por score`
-            : "Resultados del último scan en curso o ejecutado"}
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          alignItems: "flex-start",
-          flex: "0 1 280px",
-        }}
-      >
-        {rightSlot && <div style={{ flex: 1, minWidth: 160 }}>{rightSlot}</div>}
-        <ExpandButton expanded={expanded} onClick={onToggleExpand} />
-      </div>
-    </div>
-  );
-}
 
 function DiscoverEmptyState() {
   return (
@@ -255,6 +174,95 @@ function NoMatchesState({
       >
         Limpiar filtro
       </button>
+    </div>
+  );
+}
+
+function DiscoverLog({
+  scanLog,
+  logExpanded,
+  setLogExpanded,
+  previewCount,
+}: {
+  scanLog: ScanLogEntry[];
+  logExpanded: boolean;
+  setLogExpanded: (v: boolean) => void;
+  previewCount: number;
+}) {
+  const logRef = useRef<HTMLDivElement | null>(null);    // ← NUEVO
+  const reversedLog = [...scanLog].reverse();
+  const hiddenCount = Math.max(0, reversedLog.length - previewCount);
+  const visibleLog = logExpanded ? reversedLog : reversedLog.slice(0, previewCount);
+
+  // Cuando se colapsa el log (Ver menos), resetear el scroll al inicio
+  // para que la primera fila quede completamente visible
+  useEffect(() => {
+    if (!logExpanded && logRef.current) {
+      logRef.current.scrollTop = 0;
+    }
+  }, [logExpanded]);
+
+  if (scanLog.length === 0) {
+    return (
+      <div className="scroll-y" style={{ gap: 3 }}>
+        <span style={{ fontSize: 11, color: MUTED, fontFamily: "'Inter', sans-serif" }}>
+          Esperando inicio...
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div
+        ref={logRef}                                       // ← NUEVO
+        className={`scroll-y discover-log ${
+          !logExpanded && hiddenCount > 0 ? "discover-log--collapsed" : ""
+        }`}
+        style={{ gap: 3 }}
+      >
+        {visibleLog.map((l, i) => (
+          <div
+            key={i}
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 10,
+              lineHeight: 1.6,
+              flexShrink: 0,
+              color:
+                l.type === "hit"
+                  ? GREEN
+                  : l.type === "done"
+                  ? ACCENT
+                  : l.type === "warn"
+                  ? ORANGE
+                  : l.type === "skip"
+                  ? MUTED
+                  : SUB,
+            }}
+          >
+            <span style={{ color: MUTED }}>{l.t} </span>
+            {l.msg}
+          </div>
+        ))}
+      </div>
+
+      {hiddenCount > 0 && (
+        <button
+          className="discover-log-toggle"
+          onClick={() => setLogExpanded(!logExpanded)}
+        >
+          {logExpanded ? (
+            <>
+              <span>▴</span> Ver menos
+            </>
+          ) : (
+            <>
+              <span>▾</span> Ver {hiddenCount} más
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }

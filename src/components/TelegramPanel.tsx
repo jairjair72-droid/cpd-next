@@ -2,6 +2,7 @@
 
 import { COLORS } from "@/lib/constants";
 import ExpandButton from "./ExpandButton";
+import PanelHeader from "@/components/PanelHeader";
 import type { Signal, TelegramSent } from "@/lib/types";
 
 const { CARD, BG, BORDER, ACCENT, ORANGE, GREEN, MUTED } = COLORS;
@@ -43,9 +44,10 @@ export default function TelegramPanel({
       }}
     >
       <PanelHeader
-        tgConfigured={tgConfigured}
-        expanded={isFocused}
-        onToggleExpand={onToggleFocus}
+        title="📱 Telegram — Últimas 24 horas"
+        subtitle={<ConfigurationBadge tgConfigured={tgConfigured} />}
+        isFocused={isFocused}
+        onToggleFocus={onToggleFocus}
       />
 
       {!tgConfigured ? (
@@ -53,67 +55,23 @@ export default function TelegramPanel({
       ) : last24h.length === 0 ? (
         <NoMessagesState />
       ) : (
-        <>
-          <StatsGrid
-            sent={last24h.length}
-            buyCount={buyCount}
-            watchCount={watchCount}
-            errorCount={errorCount}
-          />
+        <div className="panel-inner panel-inner--single">
+          <div className="panel-tokens-header">
+            <StatsGrid
+              sent={last24h.length}
+              buyCount={buyCount}
+              watchCount={watchCount}
+              errorCount={errorCount}
+            />
+          </div>
           <RecentHistory messages={last24h} />
-        </>
+        </div>
       )}
     </div>
   );
 }
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
-
-function PanelHeader({
-  tgConfigured,
-  expanded,
-  onToggleExpand,
-}: {
-  tgConfigured: boolean;
-  expanded: boolean;
-  onToggleExpand: () => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 10,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 10,
-          color: MUTED,
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 600,
-          letterSpacing: 1,
-          textTransform: "uppercase",
-        }}
-      >
-        📱 Telegram — Últimas 24 horas
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <ConfigurationBadge tgConfigured={tgConfigured} />
-        <ExpandButton expanded={expanded} onClick={onToggleExpand} />
-      </div>
-    </div>
-  );
-}
 
 function ConfigurationBadge({ tgConfigured }: { tgConfigured: boolean }) {
   const color = tgConfigured ? GREEN : MUTED;
@@ -270,15 +228,7 @@ function RecentHistory({ messages }: { messages: TelegramSent[] }) {
       >
         Historial reciente
       </div>
-      <div
-        style={{
-          maxHeight: 200,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
+      <div className="scroll-y" style={{ gap: 2 }}>
         {messages.map((m, i) => (
           <MessageRow key={i} m={m} />
         ))}

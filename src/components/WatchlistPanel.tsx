@@ -7,6 +7,7 @@ import { cmcUrl } from "@/lib/client/api";
 import { latestSnapshotOf, pctSinceAdded, snapshotsOf } from "@/lib/watchlist";
 import ExpandButton from "./ExpandButton";
 import SymbolAutocomplete from "./SymbolAutocomplete";
+import PanelHeader from "@/components/PanelHeader";
 import ScoreBadge from "./ScoreBadge";
 import Sparkline from "./Sparkline";
 import { DetailRow, LinkBtn } from "./DetailRow";
@@ -116,22 +117,23 @@ export default function WatchlistPanel({
             ? "Sin tokens en watch"
             : `${entries.length} tokens · ordenados por % desde added`
         }
-        expanded={isFocused}
-        onToggleExpand={onToggleFocus}
-        rightSlot={
-          <SymbolAutocomplete
-            onSelect={handleAdd}
-            excludeSymbols={excluded}
-            placeholder="Agregar token"
-          />
-        }
+        isFocused={isFocused}
+        onToggleFocus={onToggleFocus}
       />
 
       {entries.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="panel-inner panel-inner--single">
-          <div className="scroll-y">
+          <div className="panel-tokens-header">
+            <SymbolAutocomplete
+              onSelect={handleAdd}
+              excludeSymbols={excluded}
+              placeholder="Agregar token"
+            />
+          </div>
+
+          <div className="scroll-y" style={{ gap: 6, paddingRight: 2 }}>
             {visible.map(({ entry, currentPrice, pct }) => (
               <WatchCard
                 key={entry.symbol}
@@ -143,7 +145,7 @@ export default function WatchlistPanel({
                 snapshots={snapshotsOf(history, entry.symbol)}
                 expanded={expandedSymbol === entry.symbol}
                 onToggle={() => {
-                  if (compact) return; // no permite expandir cards en compacto
+                  if (compact) return;
                   setExpandedSymbol((s) => (s === entry.symbol ? null : entry.symbol));
                 }}
                 onRemove={() => {
@@ -163,70 +165,6 @@ export default function WatchlistPanel({
 }
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
-
-function PanelHeader({
-  title,
-  subtitle,
-  expanded,
-  onToggleExpand,
-  rightSlot,
-}: {
-  title: string;
-  subtitle: string;
-  expanded: boolean;
-  onToggleExpand: () => void;
-  rightSlot?: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 12,
-        flexWrap: "wrap",
-        marginBottom: 10,
-      }}
-    >
-      <div style={{ minWidth: 0, flex: "1 1 200px" }}>
-        <div
-          style={{
-            fontSize: 10,
-            color: MUTED,
-            fontFamily: "'Inter', sans-serif",
-            fontWeight: 600,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-          }}
-        >
-          {title}
-        </div>
-        <div
-          style={{
-            fontSize: 10,
-            color: MUTED,
-            fontFamily: "'Inter', sans-serif",
-            marginTop: 2,
-          }}
-        >
-          {subtitle}
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          alignItems: "flex-start",
-          flex: "0 1 280px",
-        }}
-      >
-        {rightSlot && <div style={{ flex: 1, minWidth: 160 }}>{rightSlot}</div>}
-        <ExpandButton expanded={expanded} onClick={onToggleExpand} />
-      </div>
-    </div>
-  );
-}
 
 function EmptyState() {
   return (
