@@ -517,21 +517,20 @@ input::placeholder { color: var(--color-text-mute); }
    Discover — log con preview en mobile
    ═══════════════════════════════════════════════════════════════════════ */
 
-.discover-log {
-  position: relative;
-}
+/* El comportamiento de "preview + ver más" solo aplica en mobile.
+   En desktop el log se ve siempre completo. */
 
-/* Cuando está colapsado (preview), aplicamos máscara para difuminar el final */
-.discover-log--collapsed {
-  max-height: 180px;
-  overflow: hidden;
-  /* Difuminado sutil en la parte inferior, fade hacia transparente */
-  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+@media (max-width: 767px) {
+  .discover-log--collapsed {
+    max-height: 180px;
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  }
 }
 
 .discover-log-toggle {
-  display: flex;
+  display: none;  /* oculto en desktop por default */
   align-items: center;
   justify-content: center;
   gap: 5px;
@@ -548,6 +547,13 @@ input::placeholder { color: var(--color-text-mute); }
   cursor: pointer;
   transition: all .15s;
 }
+
+@media (max-width: 767px) {
+  .discover-log-toggle {
+    display: flex;  /* visible en mobile */
+  }
+}
+
 .discover-log-toggle:hover {
   color: var(--color-accent);
   border-color: var(--color-accent);
