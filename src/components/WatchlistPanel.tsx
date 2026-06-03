@@ -121,18 +121,19 @@ export default function WatchlistPanel({
         onToggleFocus={onToggleFocus}
       />
 
-      {entries.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="panel-inner panel-inner--single">
-          <div className="panel-tokens-header">
-            <SymbolAutocomplete
-              onSelect={handleAdd}
-              excludeSymbols={excluded}
-              placeholder="Agregar token"
-            />
-          </div>
+      <div className="panel-inner panel-inner--single">
+        {/* Buscador siempre visible, aunque la lista esté vacía */}
+        <div className="panel-tokens-header">
+          <SymbolAutocomplete
+            onSelect={handleAdd}
+            excludeSymbols={excluded}
+            placeholder="Agregar token"
+          />
+        </div>
 
+        {entries.length === 0 ? (
+          <EmptyState />
+        ) : (
           <div className="scroll-y" style={{ gap: 6, paddingRight: 2 }}>
             {visible.map(({ entry, currentPrice, pct }) => (
               <WatchCard
@@ -158,8 +159,8 @@ export default function WatchlistPanel({
               />
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
