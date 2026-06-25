@@ -1,4 +1,4 @@
-# 🔴 Criminal Pump Detector — v2.5 (Next.js 16 + TypeScript)
+# 🔴 Criminal Pump Detector — v2.5 (Next.js 16 + TypeScript) |
 
 Detector de oportunidades crypto que combina **análisis técnico cuantitativo** (RVOL, BB Squeeze, RSI, Funding, OI) con **análisis fundamental de IA** vía Claude, sobre tokens de Binance Spot. Dashboard interactivo con sistema de paneles dinámicos, watchlist personal, forward-test de señales y narrativa IA anti-hype.
 
