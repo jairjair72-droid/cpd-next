@@ -107,6 +107,9 @@ export async function getBinanceTickers(): Promise<BinanceTicker[]> {
 }
 
 export interface KlineData {
+  opens: number[];
+  highs: number[];
+  lows: number[];
   closes: number[];
   volumes: number[];
 }

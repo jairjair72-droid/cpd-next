@@ -56,6 +56,7 @@ import ApiStatusInline from "@/components/ApiStatusInline";
 import { appendSnapshot, deriveAlerts, latestSnapshotOf } from "@/lib/watchlist";
 import type { SymbolEntry } from "@/lib/client/api";
 import NarrativeBanner from "./NarrativeBanner";
+import WyckoffPanel from "./WyckoffPanel";
 
 const { BG, CARD, BORDER, TEXT, SUB, MUTED, ACCENT, ORANGE, GREEN } = COLORS;
 const cardStyle: React.CSSProperties = {
@@ -94,6 +95,7 @@ export default function App() {
   // ─── Narrative ─────────────────────────
   const [narratives, setNarratives] = useLocalStorage<NarrativeEntry[]>("cpd_narratives", []);
   const [globalNarrative, setGlobalNarrative] = useLocalStorage<GlobalNarrative | null>("cpd_global_narrative", null);
+  const [klineMap, setKlineMap] = useLocalStorage<Record<string, { opens: number[]; highs: number[]; lows: number[]; closes: number[]; volumes: number[] } | null>>("cpd_kline_map", {});
 
   // Estado efímero (no se persiste — son cosas de la sesión actual)
   const [searchQuery, setSearchQuery] = useState("");
@@ -229,6 +231,7 @@ export default function App() {
 
       log("Descargando historial de precios (30d) en paralelo...", "info");
       klineMap = await getKlines(selected.map((t) => t.binanceSymbol), "1d", 30);
+      setKlineMap(klineMap);
       // ★ NUEVO: traemos también velas con volumen para el RVOL.
       // Reutilizamos las mismas velas — Binance devuelve OHLCV en /klines,
       // pero `getKlines` actual solo extrae closes. Por compatibilidad, simulamos
@@ -832,6 +835,7 @@ export default function App() {
             fng={fng}
             setRadarSignals={setRadarSignals}
             globalNarrative={globalNarrative}
+            klineMap={klineMap}
             narratives={narratives}
 
             // Estado de expansión
@@ -909,6 +913,7 @@ interface DashboardProps {
   fng: FearGreedIndex | null;
   setRadarSignals: React.Dispatch<React.SetStateAction<RadarSignal[]>>;
   globalNarrative: GlobalNarrative | null;
+  klineMap: Record<string, { opens: number[]; highs: number[]; lows: number[]; closes: number[]; volumes: number[] } | null>;
   narratives: NarrativeEntry[];
 
   // Estado de expansión
@@ -980,7 +985,7 @@ function DashboardTab(p: DashboardProps) {
                 fontSize: 11, color: TEXT, outline: "none", cursor: "pointer",
               }}
             >
-              {[20, 30, 40, 50, 75, 100].map((n) => (
+              {[3, 5, 10, 20, 30, 40, 50, 75, 100].map((n) => (
                 <option key={n} value={n}>Top {n}</option>
               ))}
             </select>
@@ -1153,6 +1158,28 @@ function DashboardTab(p: DashboardProps) {
                       2,
                       p.rowFocus[2] === "telegram" ? null : "telegram",
                     )
+                  }
+                  compact={compact}
+                />
+              ),
+            },
+          ]}
+        />
+        {/* ─── FILA 3: Wyckoff ─────────── */}
+        <DashRow
+          rowNumber={3}
+          focus={p.rowFocus[3] ?? null}
+          setFocus={(id) => p.setFocusForRow(3, p.rowFocus[3] === id ? null : id)}
+          panels={[
+            {
+              id: "wyckoff",
+              render: (compact) => (
+                <WyckoffPanel
+                  signals={p.radarSignals}
+                  klineMap={p.klineMap}
+                  isFocused={p.rowFocus[3] === "wyckoff"}
+                  onToggleFocus={() =>
+                    p.setFocusForRow(3, p.rowFocus[3] === "wyckoff" ? null : "wyckoff")
                   }
                   compact={compact}
                 />

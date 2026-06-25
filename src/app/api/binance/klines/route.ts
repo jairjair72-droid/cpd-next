@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       }),
     );
     // Estructura nueva: cada símbolo mapea a { closes, volumes } | null
-    const result: Record<string, { closes: number[]; volumes: number[] } | null> =
+    const result: Record<string, { opens: number[]; highs: number[]; lows: number[]; closes: number[]; volumes: number[] } | null> =
       Object.fromEntries(entries);
     return NextResponse.json({ ok: true, klines: result });
   } catch (err) {

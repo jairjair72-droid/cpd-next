@@ -415,12 +415,13 @@ function RadarCard({ signal: s, narrative, expanded, onToggle }: CardProps) {
           {/* ── Breakdown del score técnico (con barras visuales) ─────────── */}
           <SectionTitle>📊 Breakdown del score · Total {s.breakdown.total}/100</SectionTitle>
           <div style={{ marginBottom: 12 }}>
-            <ScoreBar label="RVOL"     value={s.breakdown.rvol}           max={25} />
-            <ScoreBar label="Squeeze"  value={s.breakdown.bb_squeeze}     max={15} />
-            <ScoreBar label="RSI"      value={s.breakdown.rsi}            max={20} />
-            <ScoreBar label="Range"    value={s.breakdown.range_position} max={15} />
-            <ScoreBar label="Futures"  value={s.breakdown.futures}        max={20} disabled={!s.indicators.has_futures} />
-            <ScoreBar label="F&G"      value={s.breakdown.fng_modulator}  max={5}  />
+            <ScoreBar label="RVOL"     value={s.breakdown.rvol}           max={22} />
+            <ScoreBar label="Squeeze"  value={s.breakdown.bb_squeeze}     max={13} />
+            <ScoreBar label="RSI"      value={s.breakdown.rsi}            max={18} />
+            <ScoreBar label="Range"    value={s.breakdown.range_position} max={13} />
+            <ScoreBar label="Futures"  value={s.breakdown.futures}        max={18} disabled={!s.indicators.has_futures} />
+            <ScoreBar label="F&G"      value={s.breakdown.fng_modulator}  max={4}  />
+            <ScoreBar label="Wyckoff"  value={s.breakdown.wyckoff}        max={12} />
           </div>
 
           {/* ── Indicadores numéricos exactos ─────────────────────────────── */}
@@ -498,6 +499,35 @@ function RadarCard({ signal: s, narrative, expanded, onToggle }: CardProps) {
             ) : (
               <Indicator label="Futures" value="N/D" hint="Sin contrato perpetuo" />
             )}
+          </Grid>
+
+          {/* ── Wyckoff ─────────────────────────────────────────────────── */}
+          <SectionTitle>📐 Wyckoff</SectionTitle>
+          <Grid minCol={110}>
+            <Indicator
+              label="Trading Range"
+              value={`${(s.indicators.wyckoff_tr_width * 100).toFixed(1)}%`}
+              hint={s.indicators.wyckoff_tr_width < 0.08 ? "Rango activo ✓" : "Sin rango claro"}
+              highlight={s.indicators.wyckoff_tr_width < 0.08}
+            />
+            <Indicator
+              label="Tendencia previa"
+              value={s.indicators.wyckoff_prior_trend === "down" ? "↓ Bajista" : s.indicators.wyckoff_prior_trend === "up" ? "↑ Alcista" : "→ Neutral"}
+              hint={s.indicators.wyckoff_prior_trend === "down" ? "Favorece acumulación" : s.indicators.wyckoff_prior_trend === "up" ? "Favorece distribución" : "Sin sesgo"}
+              highlight={s.indicators.wyckoff_prior_trend === "down"}
+            />
+            <Indicator
+              label="Esfuerzo vs Resultado"
+              value={`${(s.indicators.wyckoff_effort_vs_result * 100).toFixed(0)}%`}
+              hint="% velas con absorción"
+              highlight={s.indicators.wyckoff_effort_vs_result > 0.3}
+            />
+            <Indicator
+              label="Spring / UTAD"
+              value={s.indicators.wyckoff_spring_utad === "spring" ? "🟢 Spring" : s.indicators.wyckoff_spring_utad === "utad" ? "🔴 UTAD" : "—"}
+              hint={s.indicators.wyckoff_spring_utad === "spring" ? "Trampa bajista revertida" : s.indicators.wyckoff_spring_utad === "utad" ? "Trampa alcista revertida" : "Sin trampa detectada"}
+              highlight={s.indicators.wyckoff_spring_utad === "spring"}
+            />
           </Grid>
 
           {/* ── Disenso con Claude ────────────────────────────────────────── */}

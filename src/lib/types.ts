@@ -177,6 +177,10 @@ export interface TechnicalIndicators {
   funding_rate: number | null;       // si tiene futures
   oi_change_24h: number | null;      // si tiene futures
   has_futures: boolean;
+  wyckoff_tr_width: number;
+  wyckoff_prior_trend: "up" | "down" | "neutral";
+  wyckoff_effort_vs_result: number;
+  wyckoff_spring_utad: "spring" | "utad" | null;
 }
 
 // ─── Score compuesto del Radar ───────────────────────────────────────────────
@@ -190,6 +194,7 @@ export interface RadarScoreBreakdown {
   futures: number;         // peso 20 (0 si no hay futures, otros se redistribuyen)
   fng_modulator: number;   // peso 5
   total: number;           // 0-100, normalizado
+  wyckoff: number;
 }
 
 export type ClaudeAgreement = "AGREE" | "DISAGREE_BULL" | "DISAGREE_BEAR" | "NEUTRAL";

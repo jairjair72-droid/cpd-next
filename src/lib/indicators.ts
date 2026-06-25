@@ -140,6 +140,96 @@ export function rangePosition(closes: number[], days = 90): number {
   return (current - low) / (high - low);
 }
 
+// ─── Wyckoff ────────────────────────────────────────────────────────────────
+
+/**
+ * Detecta si el precio lleva N velas en un rango lateral estrecho.
+ * Devuelve la amplitud del rango como % del precio medio (menor = más comprimido).
+ * < 0.08 (8%) = Trading Range activo.
+ */
+export function tradingRangeWidth(closes: number[], period = 20): number {
+  const slice = closes.slice(-period);
+  if (slice.length < period) return 1;
+  const high = Math.max(...slice);
+  const low = Math.min(...slice);
+  const mid = (high + low) / 2;
+  if (mid === 0) return 1;
+  return (high - low) / mid;
+}
+
+/**
+ * Tendencia previa al rango actual.
+ * Compara el precio medio de las primeras `lookback` velas con el precio
+ * medio de las últimas `period` velas.
+ * Retorna: "up" | "down" | "neutral"
+ */
+export function priorTrend(
+  closes: number[],
+  period = 20,
+  lookback = 30,
+): "up" | "down" | "neutral" {
+  if (closes.length < period + lookback) return "neutral";
+  const before = closes.slice(-(period + lookback), -period);
+  const recent = closes.slice(-period);
+  const avgBefore = sma(before, before.length);
+  const avgRecent = sma(recent, recent.length);
+  const change = (avgRecent - avgBefore) / avgBefore;
+  if (change > 0.07) return "up";
+  if (change < -0.07) return "down";
+  return "neutral";
+}
+
+/**
+ * Esfuerzo vs Resultado.
+ * Velas con volumen alto (> avgVol * 1.5) pero rango de precio pequeño
+ * (< avgRange * 0.5) indican absorción — señal Wyckoff de agotamiento.
+ * Devuelve 0-1: cuántas de las últimas `period` velas tienen esa divergencia.
+ */
+export function effortVsResult(
+  closes: number[],
+  volumes: number[],
+  period = 20,
+): number {
+  if (closes.length < period + 1 || volumes.length < period) return 0;
+  const recentCloses = closes.slice(-period - 1);
+  const recentVols = volumes.slice(-period);
+  const avgVol = sma(recentVols, period);
+  const ranges: number[] = [];
+  for (let i = 1; i <= period; i++) {
+    ranges.push(Math.abs(recentCloses[i] - recentCloses[i - 1]));
+  }
+  const avgRange = sma(ranges, period);
+  let divergences = 0;
+  for (let i = 0; i < period; i++) {
+    if (recentVols[i] > avgVol * 1.5 && ranges[i] < avgRange * 0.5) divergences++;
+  }
+  return divergences / period;
+}
+
+/**
+ * Detecta Spring (acumulación) o UTAD (distribución).
+ * Spring: las últimas 3 velas rompieron el mínimo del rango pero cerraron
+ * por encima de él. UTAD: rompieron el máximo y cerraron por debajo.
+ * Retorna: "spring" | "utad" | null
+ */
+export function detectSpringUtad(
+  closes: number[],
+  period = 20,
+): "spring" | "utad" | null {
+  if (closes.length < period + 3) return null;
+  const rangePart = closes.slice(-(period + 3), -3);
+  const rangeHigh = Math.max(...rangePart);
+  const rangeLow = Math.min(...rangePart);
+  const last3 = closes.slice(-3);
+  const minLast3 = Math.min(...last3);
+  const maxLast3 = Math.max(...last3);
+  const current = closes[closes.length - 1];
+
+  if (minLast3 < rangeLow && current > rangeLow) return "spring";
+  if (maxLast3 > rangeHigh && current < rangeHigh) return "utad";
+  return null;
+}
+
 // ─── Empaquetador ───────────────────────────────────────────────────────────
 
 /**
@@ -169,5 +259,9 @@ export function computeIndicators(args: {
     funding_rate: args.funding_rate ?? null,
     oi_change_24h: args.oi_change_24h ?? null,
     has_futures: args.has_futures,
+    wyckoff_tr_width: tradingRangeWidth(args.closes, 20),
+    wyckoff_prior_trend: priorTrend(args.closes, 20, 30),
+    wyckoff_effort_vs_result: effortVsResult(args.closes, args.volumes, 20),
+    wyckoff_spring_utad: detectSpringUtad(args.closes, 20),
   };
 }

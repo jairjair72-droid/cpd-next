@@ -14,12 +14,13 @@ import type {
 
 // ─── Pesos del score compuesto ──────────────────────────────────────────────
 const WEIGHTS = {
-  rvol:           25,
-  bb_squeeze:     15,
-  rsi:            20,
-  range_position: 15,
-  futures:        20,
-  fng_modulator:  5,
+  rvol:           22,  // era 25 — cedemos 3 puntos
+  bb_squeeze:     13,  // era 15 — cedemos 2 puntos
+  rsi:            18,  // era 20 — cedemos 2 puntos
+  range_position: 13,  // era 15 — cedemos 2 puntos
+  futures:        18,  // era 20 — cedemos 2 puntos
+  fng_modulator:   4,  // era 5  — cedemos 1 punto
+  wyckoff:        12,  // NUEVO — total sigue siendo 100
 } as const;
 
 // ─── Scorers individuales (cada uno devuelve 0-1) ───────────────────────────
@@ -118,6 +119,32 @@ function scoreFng(fng: FearGreedIndex | null): number {
   return 0.2;
 }
 
+// ─── Wyckoff compuesto ─────────────────────────────────────────────────────────
+/*
+ * Combina las 4 señales en un score 0-1.
+ * Spring en acumulación = máximo puntaje. UTAD en distribución = penaliza.
+ */
+function scoreWyckoff(ind: TechnicalIndicators): number {
+  let score = 0.5; // neutro por defecto
+
+  // Trading Range activo (< 8% amplitud) → contexto favorable
+  if (ind.wyckoff_tr_width < 0.08) score += 0.15;
+  else if (ind.wyckoff_tr_width > 0.20) score -= 0.15;
+
+  // Tendencia previa: acumulación requiere caída previa
+  if (ind.wyckoff_prior_trend === "down") score += 0.15;
+  else if (ind.wyckoff_prior_trend === "up") score -= 0.10;
+
+  // Esfuerzo vs Resultado: absorción alta = señal positiva
+  if (ind.wyckoff_effort_vs_result > 0.3) score += 0.15;
+
+  // Spring/UTAD: spring es la señal más fuerte, UTAD penaliza
+  if (ind.wyckoff_spring_utad === "spring") score += 0.20;
+  else if (ind.wyckoff_spring_utad === "utad") score -= 0.25;
+
+  return Math.max(0, Math.min(1, score));
+}
+
 // ─── Score compuesto ─────────────────────────────────────────────────────────
 
 export function computeRadarScore(
@@ -130,6 +157,7 @@ export function computeRadarScore(
   const rangeS   = scoreRangePosition(ind.range_position_90d, ind.ath_distance_pct);
   const futuresS = scoreFutures(ind.funding_rate, ind.oi_change_24h);
   const fngS     = scoreFng(fng);
+  const wyckoffS = scoreWyckoff(ind);
 
   // Redistribución: si no hay futures, los 20 puntos de futures se reparten
   // proporcionalmente entre los otros 4 indicadores principales (rvol, squeeze,
@@ -142,17 +170,18 @@ export function computeRadarScore(
       rsiS     * WEIGHTS.rsi +
       rangeS   * WEIGHTS.range_position +
       futuresS * WEIGHTS.futures +
-      fngS     * WEIGHTS.fng_modulator;
+      fngS     * WEIGHTS.fng_modulator +
+      wyckoffS * WEIGHTS.wyckoff;
   } else {
-    // 4 indicadores principales suman 75; F&G suma 5 (=80). Redistribuimos
-    // los 20 de futures proporcionalmente sobre 75 → multiplicador 95/75.
-    const mult = 95 / 75;
+    // El mult ahora es sobre 88 (sin futures ni wyckoff) → redistribuye a 96
+    const mult = 96 / 70;
     total =
-      (rvolS * WEIGHTS.rvol +
-        squeezeS * WEIGHTS.bb_squeeze +
-        rsiS * WEIGHTS.rsi +
-        rangeS * WEIGHTS.range_position) * mult +
-      fngS * WEIGHTS.fng_modulator;
+      (rvolS    * WEIGHTS.rvol +
+      squeezeS * WEIGHTS.bb_squeeze +
+      rsiS     * WEIGHTS.rsi +
+      rangeS   * WEIGHTS.range_position) * mult +
+      fngS     * WEIGHTS.fng_modulator +
+      wyckoffS * WEIGHTS.wyckoff;
   }
 
   const breakdown: RadarScoreBreakdown = {
@@ -163,6 +192,7 @@ export function computeRadarScore(
     futures:        +(futuresS * WEIGHTS.futures).toFixed(1),
     fng_modulator:  +(fngS     * WEIGHTS.fng_modulator).toFixed(1),
     total:          Math.round(Math.max(0, Math.min(100, total))),
+    wyckoff: +(wyckoffS * WEIGHTS.wyckoff).toFixed(1),
   };
 
   // Razones legibles (chips para la UI)
@@ -182,6 +212,10 @@ export function computeRadarScore(
     reasons.push(`OI +${ind.oi_change_24h.toFixed(1)}%`);
   }
   if (fng && fng.value < 25) reasons.push(`F&G ${fng.value} (Extreme Fear)`);
+  if (ind.wyckoff_spring_utad === "spring") reasons.push("Spring detectado 🟢");
+  if (ind.wyckoff_spring_utad === "utad")   reasons.push("UTAD detectado 🔴");
+  if (ind.wyckoff_tr_width < 0.08 && ind.wyckoff_prior_trend === "down")
+    reasons.push("Rango acumulación Wyckoff");
 
   return { breakdown, reasons };
 }
