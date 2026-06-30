@@ -147,7 +147,7 @@ export function rangePosition(closes: number[], days = 90): number {
  * Devuelve la amplitud del rango como % del precio medio (menor = más comprimido).
  * < 0.08 (8%) = Trading Range activo.
  */
-export function tradingRangeWidth(closes: number[], period = 20): number {
+export function tradingRangeWidth(closes: number[], period = 25): number {
   const slice = closes.slice(-period);
   if (slice.length < period) return 1;
   const high = Math.max(...slice);
@@ -174,8 +174,8 @@ export function priorTrend(
   const avgBefore = sma(before, before.length);
   const avgRecent = sma(recent, recent.length);
   const change = (avgRecent - avgBefore) / avgBefore;
-  if (change > 0.07) return "up";
-  if (change < -0.07) return "down";
+  if (change > 0.04) return "up";
+  if (change < -0.04) return "down";
   return "neutral";
 }
 
@@ -259,7 +259,7 @@ export function computeIndicators(args: {
     funding_rate: args.funding_rate ?? null,
     oi_change_24h: args.oi_change_24h ?? null,
     has_futures: args.has_futures,
-    wyckoff_tr_width: tradingRangeWidth(args.closes, 20),
+    wyckoff_tr_width: tradingRangeWidth(args.closes, 25),
     wyckoff_prior_trend: priorTrend(args.closes, 20, 30),
     wyckoff_effort_vs_result: effortVsResult(args.closes, args.volumes, 20),
     wyckoff_spring_utad: detectSpringUtad(args.closes, 20),

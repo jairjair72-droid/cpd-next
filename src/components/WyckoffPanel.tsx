@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { COLORS } from "@/lib/constants";
 import type { RadarSignal } from "@/lib/types";
 import PanelHeader from "@/components/PanelHeader";
@@ -10,6 +10,7 @@ const { CARD, BORDER, BG, TEXT, SUB, MUTED, ACCENT, ORANGE, GREEN } = COLORS;
 const SVG_GREEN  = "#22c55e";
 const SVG_RED    = "#ef4444";
 const SVG_ORANGE = "#f97316";
+const SVG_PURPLE = "#a78bfa"
 const SVG_MUTED  = "#6b7280";
 
 interface KlineData {
@@ -30,39 +31,117 @@ interface Props {
 
 // ─── Helpers Wyckoff ─────────────────────────────────────────────────────────
 
-function detectPhase(ind: RadarSignal["indicators"]): {
+function detectPhase(
+  ind: RadarSignal["indicators"],
+  kline: KlineData,
+): {
   phase: string;
   scenario: "accumulation" | "distribution" | "unknown";
   label: string;
   color: string;
+  confidence: number; // 0-100
+  phaseRanges: Record<string, [number, number]>; // fase → [idxStart, idxEnd]
 } {
+  const { closes, highs, lows } = kline;
+  const n = closes.length;
   const { wyckoff_prior_trend, wyckoff_tr_width, wyckoff_spring_utad, wyckoff_effort_vs_result } = ind;
 
+  // ─── Detectar rangos de velas por evento ────────────────────────────────
+  const rangeStart = Math.max(0, n - 20);
+  const rangeEnd   = n - 1;
+
+  // SC/BC: vela con mínimo/máximo más extremo en la primera mitad del rango
+  const firstHalf = Math.floor((rangeStart + rangeEnd) / 2);
+  let scIdx = rangeStart;
+  let bcIdx = rangeStart;
+  for (let i = rangeStart; i <= firstHalf; i++) {
+    if (lows[i] < lows[scIdx])  scIdx = i;
+    if (highs[i] > highs[bcIdx]) bcIdx = i;
+  }
+
+  // AR: vela con mayor rebote justo después del SC/BC (ventana de 3 velas)
+  const arIdx = Math.min(scIdx + 3, rangeEnd);
+  const arIdxDist = Math.min(bcIdx + 3, rangeEnd);
+
+  // ST: test del clímax — vela más cercana al nivel del SC/BC en segunda mitad
+  const secondHalf = firstHalf + 1;
+  let stIdx = secondHalf;
+  let minDistST = Infinity;
+  for (let i = secondHalf; i <= rangeEnd - 3; i++) {
+    const dist = Math.abs(closes[i] - closes[scIdx]);
+    if (dist < minDistST) { minDistST = dist; stIdx = i; }
+  }
+
+  // Spring/UTAD: últimas 3 velas
+  const springIdx: [number, number] = [Math.max(0, n - 3), n - 1];
+
+  // SOS/SOW: últimas 5 velas
+  const sosIdx: [number, number] = [Math.max(0, n - 5), n - 1];
+
+  const phaseRanges: Record<string, [number, number]> = {
+    A: [rangeStart, arIdx],
+    B: [arIdx + 1, stIdx],
+    C: springIdx,
+    D: sosIdx,
+    E: [Math.max(0, n - 8), n - 1],
+  };
+
+  // ─── Scoring de confianza ────────────────────────────────────────────────
+  let confidence = 30; // base especulativa
+  let phase = "B";
+  let scenario: "accumulation" | "distribution" | "unknown" = "unknown";
+
   if (wyckoff_spring_utad === "spring") {
-    return { phase: "C", scenario: "accumulation", label: "Fase C · Spring detectado", color: GREEN };
-  }
-  if (wyckoff_spring_utad === "utad") {
-    return { phase: "C", scenario: "distribution", label: "Fase C · UTAD detectado", color: ACCENT };
-  }
-  if (wyckoff_prior_trend === "down" && wyckoff_tr_width < 0.08) {
+    phase = "C"; scenario = "accumulation";
+    confidence = 75;
+    if (wyckoff_effort_vs_result > 0.3) confidence += 10;
+    if (wyckoff_prior_trend === "down")  confidence += 10;
+  } else if (wyckoff_spring_utad === "utad") {
+    phase = "C"; scenario = "distribution";
+    confidence = 75;
+    if (wyckoff_prior_trend === "up") confidence += 10;
+  } else if (wyckoff_prior_trend === "down" && wyckoff_tr_width < 0.08) {
+    scenario = "accumulation";
     if (wyckoff_effort_vs_result > 0.3) {
-      return { phase: "B", scenario: "accumulation", label: "Fase B · Absorción activa", color: ORANGE };
+      phase = "B"; confidence = 60;
+    } else {
+      phase = "A"; confidence = 45;
     }
-    return { phase: "A", scenario: "accumulation", label: "Fase A · Rango post-caída", color: ORANGE };
+    if (ind.rsi < 40) confidence += 10;
+    if (ind.bb_squeeze > 0.6) confidence += 10;
+  } else if (wyckoff_prior_trend === "up" && wyckoff_tr_width < 0.08) {
+    phase = "B"; scenario = "distribution"; confidence = 55;
+    if (ind.rsi > 60) confidence += 10;
+  } else if (ind.range_position_90d < 0.3 && wyckoff_prior_trend === "down") {
+    phase = "D"; scenario = "accumulation"; confidence = 50;
+    if (ind.rvol > 1.5) confidence += 15;
+  } else if (ind.range_position_90d > 0.7 && wyckoff_prior_trend === "up") {
+    phase = "D"; scenario = "distribution"; confidence = 50;
+    if (ind.rvol > 1.5) confidence += 15;
+  } else if (ind.rsi > 65 && wyckoff_prior_trend === "up") {
+    phase = "E"; scenario = "distribution"; confidence = 45;
+  } else {
+    // Fallback: siempre da una hipótesis
+    scenario = wyckoff_prior_trend === "down" ? "accumulation" : "distribution";
+    phase = "B";
+    confidence = 30;
   }
-  if (wyckoff_prior_trend === "up" && wyckoff_tr_width < 0.08) {
-    return { phase: "B", scenario: "distribution", label: "Fase B · Distribución probable", color: ACCENT };
-  }
-  if (ind.rsi > 65 && wyckoff_prior_trend === "up") {
-    return { phase: "E", scenario: "distribution", label: "Fase E · Markup/Distribución", color: ACCENT };
-  }
-  if (ind.range_position_90d > 0.7 && wyckoff_prior_trend === "up") {
-    return { phase: "D", scenario: "distribution", label: "Fase D · SOW posible", color: ACCENT };
-  }
-  if (ind.range_position_90d < 0.3 && wyckoff_prior_trend === "down") {
-    return { phase: "D", scenario: "accumulation", label: "Fase D · SOS posible", color: GREEN };
-  }
-  return { phase: "?", scenario: "unknown", label: "Sin fase clara", color: MUTED };
+
+  confidence = Math.min(100, confidence);
+
+  const color =
+    confidence >= 71 ? SVG_GREEN :
+    confidence >= 41 ? SVG_ORANGE :
+    SVG_MUTED;
+
+  const label =
+    scenario === "accumulation"
+      ? `Fase ${phase} · Acumulación · ${confidence}% confianza`
+      : scenario === "distribution"
+      ? `Fase ${phase} · Distribución · ${confidence}% confianza`
+      : `Fase ${phase} · ${confidence}% confianza`;
+
+  return { phase, scenario, label, color, confidence, phaseRanges };
 }
 
 // ─── Gráfico SVG de precio + volumen ────────────────────────────────────────
@@ -70,9 +149,11 @@ function detectPhase(ind: RadarSignal["indicators"]): {
 function PriceChart({
   kline,
   signal,
+  highlightRange,
 }: {
   kline: KlineData;
   signal: RadarSignal;
+  highlightRange: [number, number] | null;
 }) {
   const { opens, highs, lows, closes, volumes } = kline;
   const W = 540;
@@ -125,14 +206,14 @@ function PriceChart({
         <rect
           x={PAD.left} y={yOf(rangeHigh)}
           width={chartW} height={Math.max(2, yOf(rangeLow) - yOf(rangeHigh))}
-          fill={SVG_ORANGE + "15"} stroke={SVG_ORANGE + "44"} strokeWidth={0.5}
+          fill={SVG_ORANGE + "22"} stroke={SVG_ORANGE + "66"} style={{ pointerEvents: "none" }}
         />
       )}
 
       {/* Línea precio detección */}
       <line
         x1={PAD.left} y1={detY} x2={PAD.left + chartW} y2={detY}
-        stroke={SVG_RED + "66"} strokeWidth={1} strokeDasharray="4 3"
+        stroke={SVG_RED} strokeWidth={1} strokeDasharray="4 3"
       />
 
       {/* Eje Y */}
@@ -148,6 +229,20 @@ function PriceChart({
           </text>
         </g>
       ))}
+
+      {/* Highlight de fase seleccionada */}
+      {highlightRange && (
+        <rect
+          x={xOf(highlightRange[0]) - candleW}
+          y={PAD.top}
+          width={xOf(highlightRange[1]) - xOf(highlightRange[0]) + candleW * 2}
+          height={chartH}
+          fill={SVG_PURPLE + "22"}
+          stroke={SVG_PURPLE + "66"}
+          strokeWidth={1}
+          style={{ pointerEvents: "none" }}
+        />
+      )}
 
       {/* Velas japonesas */}
       {closes.map((close, i) => {
@@ -188,18 +283,18 @@ function PriceChart({
             x={xOf(i) - volBarW / 2} y={volY0 - barH}
             width={Math.max(1, volBarW)} height={barH}
             fill={v > avgVol * 1.5
-              ? SVG_ORANGE + "88"
-              : bull ? SVG_GREEN + "55" : SVG_RED + "55"}
+              ? SVG_RED
+              : bull ? SVG_GREEN : SVG_RED}
           />
         );
       })}
 
       {/* Labels */}
-      <text x={PAD.left + 3} y={detY - 3} fontSize={8} fill={SVG_RED + "99"} fontFamily="sans-serif">
+      <text x={PAD.left + 3} y={detY - 3} fontSize={8} fill={SVG_ORANGE} fontFamily="sans-serif">
         Detección
       </text>
       {inRange && (
-        <text x={PAD.left + 3} y={yOf(rangeHigh) + 10} fontSize={8} fill={SVG_ORANGE + "cc"} fontFamily="sans-serif">
+        <text x={PAD.left + 3} y={yOf(rangeHigh) + 10} fontSize={8} fill={SVG_ORANGE} fontFamily="sans-serif">
           Trading Range
         </text>
       )}
@@ -268,13 +363,33 @@ function WyckoffChips({ signal }: { signal: RadarSignal }) {
 
 // ─── Mapa de fases (diagrama compacto) ───────────────────────────────────────
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return isMobile;
+}
+
 function PhaseMap({
   currentPhase,
   scenario,
+  confidence,
+  phaseRanges,
+  highlightPhase,
+  onHoverPhase,
 }: {
   currentPhase: string;
   scenario: "accumulation" | "distribution" | "unknown";
+  confidence: number;
+  phaseRanges: Record<string, [number, number]>;
+  highlightPhase: string | null;
+  onHoverPhase: (phase: string | null) => void;
 }) {
+  const isMobile = useIsMobile();
   const phases = ["A", "B", "C", "D", "E"];
   const acumLabels: Record<string, string> = {
     A: "SC / AR", B: "ST", C: "Spring", D: "SOS / BUEC", E: "Markup",
@@ -283,56 +398,63 @@ function PhaseMap({
     A: "BC / AR", B: "ST", C: "UTAD", D: "SOW", E: "Markdown",
   };
   const labels = scenario === "distribution" ? distLabels : acumLabels;
-  const accentColor = scenario === "distribution" ? ACCENT : GREEN;
+
+  const phaseColor = (p: string) => {
+    const isActive = p === currentPhase;
+    const isPast   = phases.indexOf(p) < phases.indexOf(currentPhase);
+    if (isActive) return confidence >= 71 ? "#84cc16" : confidence >= 41 ? "#ca8a04" : "#e14d4d";
+    if (isPast)   return "#757575";
+    return "#a1a1a1";
+  };
 
   return (
     <div style={{ display: "flex", gap: 2, alignItems: "stretch", marginBottom: 12 }}>
       {phases.map((p, i) => {
-        const isActive = p === currentPhase;
-        const isPast = currentPhase !== "?" && phases.indexOf(p) < phases.indexOf(currentPhase);
+        const isActive  = p === currentPhase;
+        const isPast    = phases.indexOf(p) < phases.indexOf(currentPhase);
+        const isHovered = p === highlightPhase;
+        const col       = phaseColor(p);
+        const hasRange  = !!phaseRanges[p];
+
         return (
           <div key={p} style={{ flex: 1, display: "flex", alignItems: "center" }}>
             <div
+              onMouseEnter={() => !isMobile && hasRange && onHoverPhase(p)}
+              onMouseLeave={() => !isMobile && onHoverPhase(null)}
+              onClick={() => {
+                if (!hasRange) return;
+                if (isMobile) {
+                  onHoverPhase(highlightPhase === p ? null : p);
+                }
+              }}
               style={{
                 flex: 1,
                 borderRadius: 5,
                 padding: "5px 4px",
                 textAlign: "center",
-                background: isActive
-                  ? accentColor + "22"
-                  : isPast
-                  ? accentColor + "0a"
-                  : BG,
-                border: `1px solid ${isActive ? accentColor + "66" : BORDER}`,
-                transition: "all .2s",
+                background: isActive ? col + "22" : isPast ? col + "0a" : "transparent",
+                border: `1px solid ${isHovered ? "#adadad" : isActive ? "#d8d9db" : "#d8d9db"}`,
+                cursor: hasRange ? "pointer" : "default",
+                transition: "all .15s",
               }}
             >
               <div style={{
-                fontSize: 9,
-                fontWeight: 700,
-                color: isActive ? accentColor : isPast ? accentColor + "88" : MUTED,
-                fontFamily: "'Inter', sans-serif",
-                letterSpacing: 0.5,
+                fontSize: 9, fontWeight: 700,
+                color: col,
+                fontFamily: "'Inter', sans-serif", letterSpacing: 0.5,
               }}>
                 {p}
               </div>
               <div style={{
                 fontSize: 8,
-                color: isActive ? accentColor : MUTED,
-                fontFamily: "'Inter', sans-serif",
-                marginTop: 1,
-                lineHeight: 1.2,
+                color: isActive ? col : MUTED,
+                fontFamily: "'Inter', sans-serif", marginTop: 1, lineHeight: 1.2,
               }}>
                 {labels[p]}
               </div>
             </div>
             {i < phases.length - 1 && (
-              <div style={{
-                width: 8,
-                height: 1,
-                background: isPast ? accentColor + "55" : BORDER,
-                flexShrink: 0,
-              }} />
+              <div style={{ width: 8, height: 1, background: isPast ? col + "55" : BORDER, flexShrink: 0 }} />
             )}
           </div>
         );
@@ -415,6 +537,7 @@ export default function WyckoffPanel({
   }, [signals, latestScanTs]);
 
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [highlightPhase, setHighlightPhase] = useState<string | null>(null);
 
   const selected = useMemo(() => {
     if (!activeSignals.length) return null;
@@ -427,7 +550,7 @@ export default function WyckoffPanel({
     : null;
   const kline = klineKey ? klineMap[klineKey] : null;
 
-  const phaseInfo = selected ? detectPhase(selected.indicators) : null;
+  const phaseInfo = selected && kline ? detectPhase(selected.indicators, kline) : null;
 
   if (!activeSignals.length) {
     return (
@@ -507,7 +630,14 @@ export default function WyckoffPanel({
           </div>
 
           {/* Mapa de fases */}
-          <PhaseMap currentPhase={phaseInfo.phase} scenario={phaseInfo.scenario} />
+          <PhaseMap
+            currentPhase={phaseInfo.phase}
+            scenario={phaseInfo.scenario}
+            confidence={phaseInfo.confidence}
+            phaseRanges={phaseInfo.phaseRanges}
+            highlightPhase={highlightPhase}
+            onHoverPhase={setHighlightPhase}
+          />
 
           {/* Chips Wyckoff */}
           <WyckoffChips signal={selected} />
@@ -536,6 +666,7 @@ export default function WyckoffPanel({
               <PriceChart
                 kline={kline}
                 signal={selected}
+                highlightRange={highlightPhase ? phaseInfo.phaseRanges[highlightPhase] ?? null : null}
               />
             </div>
           ) : (
