@@ -96,7 +96,15 @@ html, body, #__next {
 }
 .fa { animation: fadeUp .3s ease; }
 
-.page-inner { padding: 16px 24px; width: 100%; }
+.page-inner { padding: 10px 6px; width: 100%; }
+
+@media (min-width: 768px) {
+  .page-inner { padding: 14px 12px; }
+}
+
+@media (min-width: 1024px) {
+  .page-inner { padding: 16px 18px; }
+}
 
 /* ═════════════════════════════════════════════════════════════════════════
    Tabs del header

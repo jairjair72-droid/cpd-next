@@ -4,6 +4,10 @@ import { useMemo, useState, useEffect } from "react";
 import { COLORS } from "@/lib/constants";
 import type { RadarSignal } from "@/lib/types";
 import PanelHeader from "@/components/PanelHeader";
+import { getKlines } from "@/lib/client/api";
+import { priorTrend } from "@/lib/indicators";
+import { useRef } from "react";
+import { createChart, ColorType, CandlestickSeries, HistogramSeries, IChartApi, createSeriesMarkers } from "lightweight-charts";
 
 const { CARD, BORDER, BG, TEXT, SUB, MUTED, ACCENT, ORANGE, GREEN } = COLORS;
 
@@ -20,6 +24,16 @@ interface KlineData {
   closes: number[];
   volumes: number[];
 }
+
+type RangeOption = { label: string; limit: number };
+
+const RANGE_OPTIONS: RangeOption[] = [
+  { label: "1M",  limit: 30  },
+  { label: "3M",  limit: 90  },
+  { label: "6M",  limit: 180 },
+  { label: "9M",  limit: 270 },
+  { label: "12M", limit: 365 },
+];
 
 interface Props {
   signals: RadarSignal[];
@@ -44,14 +58,19 @@ function detectPhase(
 } {
   const { closes, highs, lows } = kline;
   const n = closes.length;
-  const { wyckoff_prior_trend, wyckoff_tr_width, wyckoff_spring_utad, wyckoff_effort_vs_result } = ind;
+
+  // Recalcular tendencia previa con el kline actual del rango seleccionado
+  const dynamicPriorTrend = priorTrend(closes, Math.floor(n * 0.33), Math.floor(n * 0.33));
+
+  // Usar dynamicPriorTrend en vez de ind.wyckoff_prior_trend
+  const wyckoff_prior_trend = dynamicPriorTrend;
+  const { wyckoff_tr_width, wyckoff_spring_utad, wyckoff_effort_vs_result } = ind;
 
   // ─── Detectar rangos de velas por evento ────────────────────────────────
-  const rangeStart = Math.max(0, n - 20);
   const rangeEnd   = n - 1;
-
+  const rangeStart = Math.max(0, n - Math.min(n, Math.floor(n * 0.67)));
+  const firstHalf  = Math.floor((rangeStart + rangeEnd) / 2);
   // SC/BC: vela con mínimo/máximo más extremo en la primera mitad del rango
-  const firstHalf = Math.floor((rangeStart + rangeEnd) / 2);
   let scIdx = rangeStart;
   let bcIdx = rangeStart;
   for (let i = rangeStart; i <= firstHalf; i++) {
@@ -61,7 +80,6 @@ function detectPhase(
 
   // AR: vela con mayor rebote justo después del SC/BC (ventana de 3 velas)
   const arIdx = Math.min(scIdx + 3, rangeEnd);
-  const arIdxDist = Math.min(bcIdx + 3, rangeEnd);
 
   // ST: test del clímax — vela más cercana al nivel del SC/BC en segunda mitad
   const secondHalf = firstHalf + 1;
@@ -155,150 +173,140 @@ function PriceChart({
   signal: RadarSignal;
   highlightRange: [number, number] | null;
 }) {
-  const { opens, highs, lows, closes, volumes } = kline;
-  const W = 540;
-  const H = 160;
-  const VOL_H = 36;
-  const PAD = { top: 12, right: 16, bottom: 4, left: 44 };
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
 
-  const chartW = W - PAD.left - PAD.right;
-  const chartH = H - PAD.top - PAD.bottom - VOL_H - 8;
-  const n = closes.length;
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-  const minP = Math.min(...lows);
-  const maxP = Math.max(...highs);
-  const rangeP = maxP - minP || 1;
-  const maxV = Math.max(...volumes) || 1;
-  const avgVol = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: SVG_MUTED,
+        fontFamily: "monospace",
+        fontSize: 10,
+      },
+      grid: {
+        vertLines: { color: "#374151", style: 3 },
+        horzLines: { color: "#374151", style: 3 },
+      },
+      rightPriceScale: { borderColor: "#374151" },
+      timeScale: { borderColor: "#374151", timeVisible: false },
+      crosshair: { mode: 0 },
+      height: 260,
+      autoSize: true,
+    });
+    chartRef.current = chart;
 
-  const candleW = Math.max(2, (chartW / n) * 0.7);
-  const xOf = (i: number) => PAD.left + (i + 0.5) * (chartW / n);
-  const yOf = (p: number) => PAD.top + chartH - ((p - minP) / rangeP) * chartH;
+    // Serie de velas
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: SVG_GREEN,
+      downColor: SVG_RED,
+      borderUpColor: SVG_GREEN,
+      borderDownColor: SVG_RED,
+      wickUpColor: SVG_GREEN,
+      wickDownColor: SVG_RED,
+    });
 
-  // Trading Range
-  const trWidth = signal.indicators.wyckoff_tr_width;
-  const inRange = trWidth < 0.12;
-  const rangeLow  = closes[n - 1] * (1 - trWidth / 2);
-  const rangeHigh = closes[n - 1] * (1 + trWidth / 2);
+    const n = kline.closes.length;
+    // Fechas sintéticas hacia atrás desde hoy (1 vela = 1 día)
+    const baseTime = Math.floor(Date.now() / 1000 / 86400) * 86400;
+    const candleData = kline.closes.map((close, i) => ({
+      time: (baseTime - (n - 1 - i) * 86400) as any,
+      open: kline.opens[i],
+      high: kline.highs[i],
+      low: kline.lows[i],
+      close,
+    }));
+    candleSeries.setData(candleData);
 
-  // Precio detección
-  const detY = yOf(signal.detection_price);
+    // Serie de volumen
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: "volume" },
+      priceScaleId: "",
+    });
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.8, bottom: 0 },
+    });
+    const volumeData = kline.volumes.map((v, i) => ({
+      time: (baseTime - (n - 1 - i) * 86400) as any,
+      value: v,
+      color: kline.closes[i] >= kline.opens[i] ? SVG_GREEN : SVG_RED,
+    }));
+    volumeSeries.setData(volumeData);
 
-  // Eje Y
-  const yTicks = [0, 0.33, 0.66, 1].map((t) => ({
-    y: PAD.top + chartH - t * chartH,
-    label: fmtShort(minP + t * rangeP),
-  }));
+    // Línea de precio de detección
+    candleSeries.createPriceLine({
+      price: signal.detection_price,
+      color: SVG_RED,
+      lineWidth: 1,
+      lineStyle: 2,
+      axisLabelVisible: true,
+      title: "Detección",
+    });
 
-  // Volumen
-  const volY0 = PAD.top + chartH + 8 + VOL_H;
-  const volBarW = Math.max(1, (chartW / n) * 0.7);
+    // Trading Range overlay
+    const trWidth = signal.indicators.wyckoff_tr_width;
+    if (trWidth < 0.12) {
+      const last = kline.closes[n - 1];
+      candleSeries.createPriceLine({
+        price: last * (1 + trWidth / 2),
+        color: SVG_ORANGE,
+        lineWidth: 1,
+        lineStyle: 3,
+        axisLabelVisible: false,
+        title: "TR alto",
+      });
+      candleSeries.createPriceLine({
+        price: last * (1 - trWidth / 2),
+        color: SVG_ORANGE,
+        lineWidth: 1,
+        lineStyle: 3,
+        axisLabelVisible: false,
+        title: "TR bajo",
+      });
+    }
+
+    // Highlight de fase seleccionada — marca vertical con marker
+    if (highlightRange) {
+      const [start, end] = highlightRange;
+      const markers = [];
+      if (kline.closes[start] !== undefined) {
+        markers.push({
+          time: (baseTime - (n - 1 - start) * 86400) as any,
+          position: "aboveBar" as const,
+          color: SVG_PURPLE,
+          shape: "arrowDown" as const,
+          text: "inicio",
+        });
+      }
+      if (kline.closes[end] !== undefined) {
+        markers.push({
+          time: (baseTime - (n - 1 - end) * 86400) as any,
+          position: "belowBar" as const,
+          color: SVG_PURPLE,
+          shape: "arrowUp" as const,
+          text: "fin",
+        });
+      }
+      createSeriesMarkers(candleSeries, markers);
+    }
+
+    chart.timeScale().fitContent();
+
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [kline, signal, highlightRange]);
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H + VOL_H + 8}`}
-      style={{ width: "100%", height: "auto", display: "block" }}
+    <div
+      ref={containerRef}
+      style={{ width: "100%", height: 260, minWidth: 0 }}
       role="img"
       aria-label={`Gráfico de velas de ${signal.symbol} con análisis Wyckoff`}
-    >
-      {/* Trading Range highlight */}
-      {inRange && (
-        <rect
-          x={PAD.left} y={yOf(rangeHigh)}
-          width={chartW} height={Math.max(2, yOf(rangeLow) - yOf(rangeHigh))}
-          fill={SVG_ORANGE + "22"} stroke={SVG_ORANGE + "66"} style={{ pointerEvents: "none" }}
-        />
-      )}
-
-      {/* Línea precio detección */}
-      <line
-        x1={PAD.left} y1={detY} x2={PAD.left + chartW} y2={detY}
-        stroke={SVG_RED} strokeWidth={1} strokeDasharray="4 3"
-      />
-
-      {/* Eje Y */}
-      {yTicks.map((t, i) => (
-        <g key={i}>
-          <line
-            x1={PAD.left - 3} y1={t.y} x2={PAD.left + chartW} y2={t.y}
-            stroke={"#374151"} strokeWidth={0.5} strokeDasharray="2 3"
-          />
-          <text x={PAD.left - 5} y={t.y + 3.5}
-            textAnchor="end" fontSize={8} fill={SVG_MUTED} fontFamily="monospace">
-            {t.label}
-          </text>
-        </g>
-      ))}
-
-      {/* Highlight de fase seleccionada */}
-      {highlightRange && (
-        <rect
-          x={xOf(highlightRange[0]) - candleW}
-          y={PAD.top}
-          width={xOf(highlightRange[1]) - xOf(highlightRange[0]) + candleW * 2}
-          height={chartH}
-          fill={SVG_PURPLE + "22"}
-          stroke={SVG_PURPLE + "66"}
-          strokeWidth={1}
-          style={{ pointerEvents: "none" }}
-        />
-      )}
-
-      {/* Velas japonesas */}
-      {closes.map((close, i) => {
-        const open  = opens[i];
-        const high  = highs[i];
-        const low   = lows[i];
-        const bull  = close >= open;
-        const col   = bull ? SVG_GREEN : SVG_RED;
-        const cx    = xOf(i);
-        const bodyY = yOf(Math.max(open, close));
-        const bodyH = Math.max(1, Math.abs(yOf(open) - yOf(close)));
-
-        return (
-          <g key={i}>
-            {/* Mecha */}
-            <line
-              x1={cx} y1={yOf(high)} x2={cx} y2={yOf(low)}
-              stroke={col} strokeWidth={0.8}
-            />
-            {/* Cuerpo */}
-            <rect
-              x={cx - candleW / 2} y={bodyY}
-              width={candleW} height={bodyH}
-              fill={bull ? col + "cc" : col}
-              stroke={col} strokeWidth={0.5}
-            />
-          </g>
-        );
-      })}
-
-      {/* Barras de volumen */}
-      {volumes.map((v, i) => {
-        const barH = (v / maxV) * VOL_H;
-        const bull  = closes[i] >= opens[i];
-        return (
-          <rect
-            key={i}
-            x={xOf(i) - volBarW / 2} y={volY0 - barH}
-            width={Math.max(1, volBarW)} height={barH}
-            fill={v > avgVol * 1.5
-              ? SVG_RED
-              : bull ? SVG_GREEN : SVG_RED}
-          />
-        );
-      })}
-
-      {/* Labels */}
-      <text x={PAD.left + 3} y={detY - 3} fontSize={8} fill={SVG_ORANGE} fontFamily="sans-serif">
-        Detección
-      </text>
-      {inRange && (
-        <text x={PAD.left + 3} y={yOf(rangeHigh) + 10} fontSize={8} fill={SVG_ORANGE} fontFamily="sans-serif">
-          Trading Range
-        </text>
-      )}
-    </svg>
+    />
   );
 }
 
@@ -516,6 +524,47 @@ function TokenSelector({
 
 // ─── Panel principal ─────────────────────────────────────────────────────────
 
+function RangeSelector({
+  options,
+  selected,
+  loading,
+  onSelect,
+}: {
+  options: RangeOption[];
+  selected: RangeOption;
+  loading: boolean;
+  onSelect: (r: RangeOption) => void;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+      {options.map((r) => {
+        const isActive = r.limit === selected.limit;
+        return (
+          <button
+            key={r.label}
+            onClick={() => onSelect(r)}
+            disabled={loading && !isActive}
+            style={{
+              background: isActive ? SVG_PURPLE + "22" : BG,
+              border: `1px solid ${isActive ? SVG_PURPLE : BORDER}`,
+              borderRadius: 5,
+              padding: "3px 8px",
+              fontSize: 10,
+              fontWeight: isActive ? 700 : 400,
+              color: isActive ? SVG_PURPLE : SUB,
+              fontFamily: "'Inter', sans-serif",
+              cursor: loading && !isActive ? "wait" : "pointer",
+              transition: "all .15s",
+            }}
+          >
+            {loading && isActive ? "…" : r.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function WyckoffPanel({
   signals,
   klineMap,
@@ -538,6 +587,9 @@ export default function WyckoffPanel({
 
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [highlightPhase, setHighlightPhase] = useState<string | null>(null);
+  const [selectedRange, setSelectedRange] = useState<RangeOption>(RANGE_OPTIONS[0]);
+  const [klineCache, setKlineCache] = useState<Record<string, KlineData>>({});
+  const [loadingKline, setLoadingKline] = useState(false);
 
   const selected = useMemo(() => {
     if (!activeSignals.length) return null;
@@ -545,12 +597,50 @@ export default function WyckoffPanel({
     return activeSignals[0];
   }, [activeSignals, selectedSymbol]);
 
-  const klineKey = selected
-    ? Object.keys(klineMap).find((k) => k.startsWith(selected.symbol))
-    : null;
-  const kline = klineKey ? klineMap[klineKey] : null;
+  // Reset cache cuando cambia el símbolo
+  useEffect(() => {
+    setKlineCache({});
+    setSelectedRange(RANGE_OPTIONS[0]);
+    setHighlightPhase(null);
+  }, [selectedSymbol]);
 
-  const phaseInfo = selected && kline ? detectPhase(selected.indicators, kline) : null;
+  // Carga lazy por rango
+  useEffect(() => {
+    if (!selected) return;
+    const cacheKey = `${selected.symbol}-${selectedRange.limit}`;
+
+    // 1M usa el klineMap global — no hace fetch
+    if (selectedRange.limit === 30) return;
+
+    // Ya está en cache — no repite
+    if (klineCache[cacheKey]) return;
+
+    const binanceSymbol = `${selected.symbol}USDT`;
+    setLoadingKline(true);
+    getKlines([binanceSymbol], "1d", selectedRange.limit)
+      .then((result) => {
+        const data = result[binanceSymbol];
+        if (data) {
+          setKlineCache((prev) => ({ ...prev, [cacheKey]: data as KlineData }));
+        }
+      })
+      .finally(() => setLoadingKline(false));
+  }, [selected, selectedRange, klineCache]);
+
+  const kline = useMemo(() => {
+    if (!selected) return null;
+    const cacheKey = `${selected.symbol}-${selectedRange.limit}`;
+    if (selectedRange.limit === 30) {
+      const key = Object.keys(klineMap).find((k) => k.startsWith(selected.symbol));
+      return key ? klineMap[key] : null;
+    }
+    return klineCache[cacheKey] ?? null;
+  }, [selected, selectedRange, klineMap, klineCache]);
+
+  const phaseInfo = useMemo(
+    () => selected && kline ? detectPhase(selected.indicators, kline) : null,
+    [selected, kline],
+  );
 
   if (!activeSignals.length) {
     return (
@@ -586,6 +676,7 @@ export default function WyckoffPanel({
         display: "flex",
         flexDirection: "column",
         gap: 0,
+        minWidth: 0,
       }}
     >
       {/* Header */}
@@ -600,7 +691,10 @@ export default function WyckoffPanel({
       <TokenSelector
         signals={activeSignals}
         selected={selected?.symbol ?? null}
-        onSelect={setSelectedSymbol}
+        onSelect={(s) => {
+          setSelectedSymbol(s);
+          setHighlightPhase(null);
+        }}
       />
 
       {selected && phaseInfo && (
@@ -639,6 +733,15 @@ export default function WyckoffPanel({
             onHoverPhase={setHighlightPhase}
           />
 
+          {/* Range Selector */}
+          <RangeSelector
+            options={RANGE_OPTIONS}
+            selected={selectedRange}
+            loading={loadingKline}
+            onSelect={setSelectedRange}
+          />
+
+
           {/* Chips Wyckoff */}
           <WyckoffChips signal={selected} />
 
@@ -649,6 +752,8 @@ export default function WyckoffPanel({
               borderRadius: 8,
               padding: "10px 8px 6px 4px",
               border: `1px solid ${BORDER}`,
+              minWidth: 0,
+              overflow: "hidden",
             }}>
               <div style={{
                 fontSize: 9,
@@ -659,7 +764,7 @@ export default function WyckoffPanel({
                 display: "flex",
                 gap: 12,
               }}>
-                <span>{selected.symbol} · {kline.closes.length}d diario</span>
+                <span>{selected.symbol} · {selectedRange.label} · {kline.closes.length} velas</span>
                 <span style={{ color: ORANGE }}>— Trading Range</span>
                 <span style={{ color: ACCENT + "99" }}>-- Precio detección</span>
               </div>
