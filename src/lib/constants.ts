@@ -73,4 +73,4 @@ Penalize: very high whale concentration >60%, wallet base shrinking, social scor
 Reason field MUST be written in Spanish (max 12 words).
 Return exactly this JSON: {"score":<0-100>,"type":"<accumulation|breakout|recovery|unknown>","signal":"<ACUMULAR|OBSERVAR|EVITAR>","reason":"<max 12 words in Spanish>","risk":"<LOW|MEDIUM|HIGH|EXTREME>","hodl_horizon":"<short|mid|long>"}`;
 
-export const DEFAULT_MODEL = "claude-sonnet-4-6";
+export const DEFAULT_MODEL = "claude-sonnet-5";
