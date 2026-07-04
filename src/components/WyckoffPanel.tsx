@@ -175,6 +175,7 @@ function PriceChart({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const [highlightRect, setHighlightRect] = useState<{ left: number; width: number } | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -267,46 +268,59 @@ function PriceChart({
       });
     }
 
-    // Highlight de fase seleccionada — marca vertical con marker
-    if (highlightRange) {
+    // Highlight de fase seleccionada — rectángulo semitransparente vía coords
+    const updateHighlight = () => {
+      if (!highlightRange || !chartRef.current) {
+        setHighlightRect(null);
+        return;
+      }
       const [start, end] = highlightRange;
-      const markers = [];
-      if (kline.closes[start] !== undefined) {
-        markers.push({
-          time: (baseTime - (n - 1 - start) * 86400) as any,
-          position: "aboveBar" as const,
-          color: SVG_PURPLE,
-          shape: "arrowDown" as const,
-          text: "inicio",
-        });
+      const timeScale = chartRef.current.timeScale();
+      const t1 = (baseTime - (n - 1 - start) * 86400) as any;
+      const t2 = (baseTime - (n - 1 - end) * 86400) as any;
+      const x1 = timeScale.timeToCoordinate(t1);
+      const x2 = timeScale.timeToCoordinate(t2);
+      if (x1 === null || x2 === null) {
+        setHighlightRect(null);
+        return;
       }
-      if (kline.closes[end] !== undefined) {
-        markers.push({
-          time: (baseTime - (n - 1 - end) * 86400) as any,
-          position: "belowBar" as const,
-          color: SVG_PURPLE,
-          shape: "arrowUp" as const,
-          text: "fin",
-        });
-      }
-      createSeriesMarkers(candleSeries, markers);
-    }
+      setHighlightRect({ left: Math.min(x1, x2), width: Math.abs(x2 - x1) + 6 });
+    };
 
+    updateHighlight();
+    chart.timeScale().subscribeVisibleTimeRangeChange(updateHighlight);
     chart.timeScale().fitContent();
 
     return () => {
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(updateHighlight);
       chart.remove();
       chartRef.current = null;
     };
   }, [kline, signal, highlightRange]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: "100%", height: 260, minWidth: 0 }}
-      role="img"
-      aria-label={`Gráfico de velas de ${signal.symbol} con análisis Wyckoff`}
-    />
+    <div style={{ position: "relative", width: "100%", height: 260, minWidth: 0 }}>
+      <div
+        ref={containerRef}
+        style={{ width: "100%", height: 260, minWidth: 0 }}
+        role="img"
+        aria-label={`Gráfico de velas de ${signal.symbol} con análisis Wyckoff`}
+      />
+      {highlightRect && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: highlightRect.left,
+            width: highlightRect.width,
+            background: SVG_PURPLE + "22",
+            border: `1px solid ${SVG_PURPLE}66`,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+    </div>
   );
 }
 
