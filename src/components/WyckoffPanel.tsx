@@ -45,6 +45,11 @@ interface Props {
 
 // ─── Helpers Wyckoff ─────────────────────────────────────────────────────────
 
+function getKlineFor(symbol: string, klineMap: Record<string, KlineData | null>): KlineData | null {
+  const key = Object.keys(klineMap).find((k) => k.startsWith(symbol));
+  return key ? klineMap[key] : null;
+}
+
 function detectPhase(
   ind: RadarSignal["indicators"],
   kline: KlineData,
@@ -594,10 +599,27 @@ export default function WyckoffPanel({
   const activeSignals = useMemo(() => {
     if (!latestScanTs) return [];
     const cutoff = latestScanTs - 5 * 60 * 1000;
-    return signals
-      .filter((s) => s.detected_at >= cutoff)
-      .sort((a, b) => b.technical_score - a.technical_score);
-  }, [signals, latestScanTs]);
+    const filtered = signals.filter((s) => s.detected_at >= cutoff);
+
+    // Deduplicar por símbolo, quedándonos con la señal más reciente de cada uno
+    const bySymbol = new Map<string, RadarSignal>();
+    for (const s of filtered) {
+      const existing = bySymbol.get(s.symbol);
+      if (!existing || s.detected_at > existing.detected_at) {
+        bySymbol.set(s.symbol, s);
+      }
+    }
+
+    const deduped = Array.from(bySymbol.values());
+
+    return deduped.sort((a, b) => {
+      const klineA = getKlineFor(a.symbol, klineMap);
+      const klineB = getKlineFor(b.symbol, klineMap);
+      const confA = klineA ? detectPhase(a.indicators, klineA).confidence : 0;
+      const confB = klineB ? detectPhase(b.indicators, klineB).confidence : 0;
+      return confB - confA;
+    });
+  }, [signals, latestScanTs, klineMap]);
 
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [highlightPhase, setHighlightPhase] = useState<string | null>(null);

@@ -47,9 +47,17 @@ export default function RadarPanel({
   const activeSignals = useMemo(() => {
     if (!latestScanTs) return [];
     const cutoff = latestScanTs - 5 * 60 * 1000;
-    return signals
-      .filter((s) => s.detected_at >= cutoff)
-      .sort((a, b) => b.technical_score - a.technical_score);
+    const filtered = signals.filter((s) => s.detected_at >= cutoff);
+
+    const bySymbol = new Map<string, RadarSignal>();
+    for (const s of filtered) {
+      const existing = bySymbol.get(s.symbol);
+      if (!existing || s.detected_at > existing.detected_at) {
+        bySymbol.set(s.symbol, s);
+      }
+    }
+
+    return Array.from(bySymbol.values()).sort((a, b) => b.technical_score - a.technical_score);
   }, [signals, latestScanTs]);
 
   const performance = useMemo(() => computePerformance(signals), [signals]);

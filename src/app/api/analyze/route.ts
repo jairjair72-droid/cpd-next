@@ -33,11 +33,12 @@ export async function POST(req: Request) {
     if (!wantStream) {
       const result = await analyzeToken(sys, user, overrideKey);
       if (!result) {
+        console.error("❌ /api/analyze: analyzeToken devolvió null. Token:", body.token);
         return NextResponse.json(
           { ok: false, error: "Respuesta del modelo no parseable" },
           { status: 502 },
         );
-      }
+}
       return NextResponse.json({ ok: true, analysis: result });
     }
 
@@ -78,9 +79,10 @@ export async function POST(req: Request) {
       },
     });
   } catch (err) {
+    console.error("❌ /api/analyze error:", err);
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
-      { ok: false, error: msg.slice(0, 200) },
+      { ok: false, error: msg.slice(0, 500) },
       { status: 502 },
     );
   }
