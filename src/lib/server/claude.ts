@@ -53,7 +53,7 @@ export async function analyzeToken(
   const anthropic = getClient(overrideKey);
   const msg = await anthropic.messages.create({
     model: MODEL,
-    max_tokens: 1000,
+    max_tokens: 1500,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
   });
@@ -61,7 +61,15 @@ export async function analyzeToken(
     .filter((b) => b.type === "text")
     .map((b) => (b as { type: "text"; text: string }).text)
     .join("\n");
-  return safeParse(text);
+  const result = safeParse(text);
+
+  console.log(
+    `📊 analyzeToken: stop_reason=${msg.stop_reason} · tokens=${msg.usage.output_tokens}/${msg.usage.input_tokens + msg.usage.output_tokens}`,
+  );
+  if (!result) {
+    console.error("❌ analyzeToken: parse falló. Raw text:", text.slice(0, 800));
+  }
+  return result;
 }
 
 // ─── Modo stream (entrega el JSON completo cuando termina) ─────────────────

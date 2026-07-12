@@ -29,6 +29,7 @@ export const COLORS = {
 // ─── Stablecoins / pares que filtramos ──────────────────────────────────────
 export const STABLECOINS = new Set<string>([
   "USDC","BUSD","TUSD","USDP","DAI","FDUSD","PYUSD","USDT",
+  "USD1","RLUSD","GUSD","USDD","FRAX",
   "EUR","BRL","GBP","TRY","ARS","WBTC","BETH","STETH","WETH",
 ]);
 

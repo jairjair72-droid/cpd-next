@@ -45,7 +45,7 @@ import DashRow from "@/components/DashRow";
 import GlobalMetricsBar from "@/components/GlobalMetricsBar";
 import ApiKeyOverrideCard from "@/components/ApiKeyOverrideCard";
 import ThemeToggle from "@/components/ThemeToggle";
-import { computeIndicators } from "@/lib/indicators";
+import { computeIndicators, isLikelyStablecoin } from "@/lib/indicators";
 import { computeRadarScore, computeAgreement, updateOutcome } from "@/lib/radar";
 import DiscoverPanel from "@/components/DiscoverPanel";
 import TelegramPanel from "@/components/TelegramPanel";
@@ -110,10 +110,10 @@ export default function App() {
     marketdata: { ok: null, ts: null },
     anthropic:  { ok: null, ts: null },
   });
-
   // Foco por fila — indexado por número de fila. Escalable a N filas.
   // Estructura: { [rowNumber]: panelId | null }
   const [rowFocus, setRowFocus] = useState<Record<number, string | null>>({});
+  const [stablecoinFilterEnabled, setStablecoinFilterEnabled] = useLocalStorage<boolean>("cpd_stablecoin_filter", true);
 
   // Handler
   const setFocusForRow = useCallback((rowNumber: number, panelId: string | null) => {
@@ -240,6 +240,19 @@ export default function App() {
 
       pool = selected.map((t, i) => enrichToken(t, i, markets, klineMap));
 
+      if (stablecoinFilterEnabled) {
+        const before = pool.length;
+        pool = pool.filter((t) => {
+          const k = klineMap[t.binanceSymbol];
+          if (!k || !k.closes.length) return true;
+          return !isLikelyStablecoin(k.closes);
+        });     
+        const filtered = before - pool.length;
+        if (filtered > 0) {
+          log(`🪙 ${filtered} posibles stablecoins excluidas (volatilidad <2.5%)`, "info");
+        }
+      }
+
       // ★ NUEVO: traemos Futures y Fear & Greed en paralelo
       log("Descargando Futures (funding + OI) y Fear & Greed...", "info");
       const [futuresResult, fngResult] = await Promise.all([
@@ -321,7 +334,7 @@ export default function App() {
               return analyze(tokenPayload);
             },
             {
-              attempts: 3,
+              attempts: 1,
               delays: [1000, 3000, 8000],
               shouldGiveUp: isPermanentError,
               onRetry: (attempt, err, delayMs) => {
@@ -623,6 +636,7 @@ export default function App() {
     narratives, 
     setNarratives, 
     setGlobalNarrative,
+    stablecoinFilterEnabled,
   ]);
 
   // ─── Update (refresh de candidatos existentes) ──────────────────────────
@@ -871,6 +885,8 @@ export default function App() {
             setTgSentLog={setTgSentLog}
             useStreaming={useStreaming}
             setUseStreaming={setUseStreaming}
+            stablecoinFilterEnabled={stablecoinFilterEnabled}
+            setStablecoinFilterEnabled={setStablecoinFilterEnabled}
           />
         )}
       </div>
@@ -1529,6 +1545,8 @@ function SettingsTab(props: {
   setTgSentLog: (fn: (p: TelegramSent[]) => TelegramSent[]) => void;
   useStreaming: boolean;
   setUseStreaming: (fn: (v: boolean) => boolean) => void;
+  stablecoinFilterEnabled: boolean;
+  setStablecoinFilterEnabled: (fn: (v: boolean) => boolean) => void;
 }) {
   const sendTest = async () => {
     const text = `🚨 *Criminal Pump Detector*\n\n*TEST* · Score: \`99\`\n📡 Señal: *ACUMULAR* · Riesgo: HIGH\n💬 Mensaje de prueba\n🕐 ${new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })} · Binance`;
@@ -1698,6 +1716,29 @@ function SettingsTab(props: {
             <strong style={{ color: ACCENT }}>Cuándo no:</strong> en Vercel Hobby (timeout de 10s
             por function). Si vas a hacer scan largo, dejá el toggle apagado o pasá a Pro con{" "}
             <code>export const maxDuration = 60</code> en <code>analyze/route.ts</code>.
+          </div>
+        </div>
+
+        <div style={cardStyle}>
+          <SettingsTitle>🪙 Filtro de Stablecoins</SettingsTitle>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+            <button
+              className={`tog ${props.stablecoinFilterEnabled ? "on" : ""}`}
+              onClick={() => props.setStablecoinFilterEnabled((v) => !v)}
+            />
+            <div>
+              <div style={{
+                fontSize: 12,
+                color: props.stablecoinFilterEnabled ? GREEN : SUB,
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 600,
+              }}>
+                {props.stablecoinFilterEnabled ? "Filtro activo" : "Filtro desactivado"}
+              </div>
+              <div style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter', sans-serif" }}>
+                Excluye stablecoins conocidas + detección por volatilidad &lt;2.5%
+              </div>
+            </div>
           </div>
         </div>
 

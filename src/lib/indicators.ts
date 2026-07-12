@@ -265,3 +265,17 @@ export function computeIndicators(args: {
     wyckoff_spring_utad: detectSpringUtad(args.closes, 20),
   };
 }
+
+/**
+ * Detecta si un activo se comporta como stablecoin: desviación de precio
+ * menor al 2.5% respecto a su propio promedio en el período. No compara
+ * contra 1 USD directamente porque no todos los stablecoins cotizan a $1
+ * en el par (ej. wrapped tokens), sino que mide estabilidad relativa.
+ */
+export function isLikelyStablecoin(closes: number[], thresholdPct = 2.5): boolean {
+  if (closes.length < 10) return false;
+  const mean = closes.reduce((a, b) => a + b, 0) / closes.length;
+  if (mean === 0) return false;
+  const maxDeviation = Math.max(...closes.map((c) => Math.abs(c - mean) / mean)) * 100;
+  return maxDeviation < thresholdPct;
+}
