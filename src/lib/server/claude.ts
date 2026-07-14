@@ -53,7 +53,7 @@ export async function analyzeToken(
   const anthropic = getClient(overrideKey);
   const msg = await anthropic.messages.create({
     model: MODEL,
-    max_tokens: 1500,
+    max_tokens: 2500,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
   });

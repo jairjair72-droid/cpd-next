@@ -352,7 +352,7 @@ export default function App() {
           // con los siguientes. Antes esto rompía el escaneo entero.
           markApi("anthropic", false);
           const msg = err instanceof Error ? err.message : "?";
-          log(`❌ ${tok.symbol}: descartado tras 3 intentos fallidos (${msg.slice(0, 60)})`, "warn");
+          log(`❌ ${tok.symbol}: descartado tras 1 intentos fallidos (${msg.slice(0, 60)})`, "warn");
           // Continuamos con el próximo token del loop
           await new Promise((r) => setTimeout(r, 200));
           continue;
